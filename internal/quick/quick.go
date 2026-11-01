@@ -9,11 +9,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
 
+	"github.com/lyelgate/kubepilot/internal/match"
 	"github.com/spf13/cobra"
 	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -57,7 +59,7 @@ func (d Deps) client() (kubernetes.Interface, string, error) {
 // Commands returns every shortcut command, grouped under "Shortcuts".
 func Commands(d Deps) []*cobra.Command {
 	cmds := []*cobra.Command{
-		whoCmd(d), podsCmd(d), badCmd(d), shCmd(d), tailCmd(d), restartCmd(d),
+		whoCmd(d), podsCmd(d), badCmd(d), podCmd(d), logCmd(d), descCmd(d), imgCmd(d), poCmd(d), findCmd(d), shCmd(d), tailCmd(d), pfCmd(d), restartCmd(d),
 		imagesCmd(d), cleanCmd(d), neatCmd(d), decodeCmd(d), nodesCmd(d),
 		netshootCmd(d), usageCmd(d), eachCmd(d),
 	}
@@ -188,13 +190,13 @@ func listPods(d Deps, cmd *cobra.Command, all bool, selector string) ([]corev1.P
 	return list.Items, nil
 }
 
-func printPods(out io.Writer, rows []podRow, filter string, onlyBad, showNS bool) error {
+func printPods(out io.Writer, rows []podRow, filter *match.Matcher, onlyBad, showNS bool) error {
 	var shown []podRow
 	for _, r := range rows {
 		if onlyBad && r.healthy {
 			continue
 		}
-		if filter != "" && !strings.Contains(r.name, filter) {
+		if !filter.Match(r.name) {
 			continue
 		}
 		shown = append(shown, r)
@@ -225,12 +227,14 @@ func podsCmd(d Deps) *cobra.Command {
 	var all, bad bool
 	var selector string
 	cmd := &cobra.Command{
-		Use:     "pods [NAME-FILTER]",
+		Use:     "pods [NAME-REGEX]",
 		Aliases: []string{"ps"},
-		Short:   "Pods sorted problems first, with real status (CrashLoopBackOff, OOMKilled, ...)",
-		Example: `  kp pods            # current namespace
-  kp pods api -A     # pods whose name contains "api", all namespaces
-  kp pods --bad -A   # only pods that are not Running and Ready`,
+		Short:   "Pods sorted problems first, with real status (CrashLoopBackOff, OOMKilled, ...); filter by regex",
+		Long:    "List pods, unhealthy first, optionally filtered by a name regex.\n" + regexHelp,
+		Example: `  kp pods                 # current namespace
+  kp pods api -A          # names matching "api", all namespaces
+  kp pods '^(web|api)-'   # regex
+  kp pods --bad -A        # only pods that are not Running and Ready`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pods, err := listPods(d, cmd, all, selector)
@@ -241,7 +245,11 @@ func podsCmd(d Deps) *cobra.Command {
 			if len(args) == 1 {
 				filter = args[0]
 			}
-			return printPods(d.Out, podRows(pods), filter, bad, all)
+			m, err := match.Compile(filter)
+			if err != nil {
+				return err
+			}
+			return printPods(d.Out, podRows(pods), m, bad, all)
 		},
 	}
 	cmd.Flags().BoolVarP(&all, "all-namespaces", "A", false, "all namespaces")
@@ -252,14 +260,15 @@ func podsCmd(d Deps) *cobra.Command {
 
 func badCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "bad",
-		Short: "Unhealthy pods in all namespaces (same as: kp pods --bad -A)",
+		Use:     "bad",
+		Aliases: []string{"kpbad"},
+		Short:   "Unhealthy pods in all namespaces (same as: kp pods --bad -A)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			pods, err := listPods(d, cmd, true, "")
 			if err != nil {
 				return err
 			}
-			return printPods(d.Out, podRows(pods), "", true, true)
+			return printPods(d.Out, podRows(pods), nil, true, true)
 		},
 	}
 }
@@ -269,16 +278,42 @@ func badCmd(d Deps) *cobra.Command {
 func shCmd(d Deps) *cobra.Command {
 	var container string
 	cmd := &cobra.Command{
-		Use:     "sh POD|TYPE/NAME [-- COMMAND...]",
-		Aliases: []string{"shell"},
-		Short:   "Open a shell in a pod: bash if present, otherwise sh",
-		Example: `  kp sh web-0
+		Use:     "sh POD-REGEX|TYPE/NAME [-- COMMAND...]",
+		Aliases: []string{"shell", "kpsh"},
+		Short:   "Open a shell in the best pod matching a regex: bash if present, otherwise sh",
+		Long:    "Open a shell in a pod. A regex picks the best match: running and ready first.\n" + regexHelp,
+		Example: `  kp sh api               # first ready pod matching "api"
+  kp sh '^web-0$'
   kp sh deploy/api -c app
-  kp sh web-0 -- ls /data`,
+  kp sh api -- ls /data`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target := args[0]
-			kargs := []string{"exec", "-it", target}
+			if !strings.Contains(target, "/") {
+				pods, err := matchingPods(d, cmd, target, false, "")
+				if err != nil {
+					return err
+				}
+				var running []string
+				for _, p := range pods {
+					if p.Status.Phase == corev1.PodRunning {
+						running = append(running, p.Name)
+					}
+				}
+				if len(running) == 0 {
+					return fmt.Errorf("no running pod matches %q", target)
+				}
+				if len(running) > 1 {
+					fmt.Fprintf(d.ErrOut, "%d pods match; using %s\n", len(running), running[0])
+				}
+				target = running[0]
+			}
+			// -t only with a terminal, so scripts and pipes do not get a TTY warning.
+			mode := "-it"
+			if !isTTY(os.Stdin) {
+				mode = "-i"
+			}
+			kargs := []string{"exec", mode, target}
 			if container != "" {
 				kargs = append(kargs, "-c", container)
 			}
@@ -292,48 +327,6 @@ func shCmd(d Deps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&container, "container", "c", "", "container name")
-	return cmd
-}
-
-// --- tail ---------------------------------------------------------------
-
-func tailCmd(d Deps) *cobra.Command {
-	var lines int
-	var since string
-	var noFollow bool
-	cmd := &cobra.Command{
-		Use:     "tail SELECTOR|TYPE/NAME",
-		Aliases: []string{"logs-all", "lg"},
-		Short:   "Follow logs from every pod and container of an app, prefixed by pod",
-		Example: `  kp tail app=web               # every pod matching the label
-  kp tail deploy/api --since 10m
-  kp tail sts/db --lines 200 --no-follow`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			kargs := []string{"logs", "--all-containers", "--prefix", "--max-log-requests=50", fmt.Sprintf("--tail=%d", lines)}
-			if !noFollow {
-				kargs = append(kargs, "-f")
-			}
-			if since != "" {
-				kargs = append(kargs, "--since="+since)
-			}
-			sel := args[0]
-			if strings.Contains(sel, "/") && !strings.Contains(sel, "=") {
-				// TYPE/NAME: resolve the workload's selector so every pod is followed,
-				// not just one, which is what "kubectl logs deploy/x" does.
-				s, err := workloadSelector(d, cmd, sel)
-				if err != nil {
-					return err
-				}
-				sel = s
-			}
-			kargs = append(kargs, "-l", sel)
-			return d.Kubectl(kargs...)
-		},
-	}
-	cmd.Flags().IntVar(&lines, "lines", 20, "lines of history per container")
-	cmd.Flags().StringVar(&since, "since", "", "only logs newer than this (5s, 2m, 3h)")
-	cmd.Flags().BoolVar(&noFollow, "no-follow", false, "print and exit")
 	return cmd
 }
 
@@ -392,13 +385,30 @@ func workloadSelector(d Deps, cmd *cobra.Command, ref string) (string, error) {
 // --- restart --------------------------------------------------------------
 
 func restartCmd(d Deps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "restart TYPE/NAME...",
-		Short: "Rolling restart of deployments, statefulsets or daemonsets, then wait for it",
+	cmd := &cobra.Command{
+		Use:   "restart TYPE/NAME... | WORKLOAD-REGEX",
+		Short: "Rolling restart of deployments, statefulsets or daemonsets (by name or regex), then wait",
+		Long:  "Rolling restart, then wait for each rollout. A regex matches Deployment, StatefulSet and DaemonSet names; more than one match needs --yes.\n" + regexHelp,
 		Example: `  kp restart deploy/api
-  kp restart deploy/api sts/worker`,
+  kp restart deploy/api sts/worker
+  kp restart '^api-'            # list what would restart
+  kp restart '^api-' --yes`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 && !strings.Contains(args[0], "/") {
+				targets, err := matchingWorkloads(d, cmd, args[0])
+				if err != nil {
+					return err
+				}
+				if len(targets) == 0 {
+					return fmt.Errorf("no deployment, statefulset or daemonset matches %q", args[0])
+				}
+				if yes, _ := cmd.Flags().GetBool("yes"); len(targets) > 1 && !yes {
+					fmt.Fprintf(d.Out, "%d workloads match:\n  %s\nRe-run with --yes to restart them all.\n", len(targets), strings.Join(targets, "\n  "))
+					return nil
+				}
+				args = targets
+			}
 			for _, t := range args {
 				if err := d.Kubectl("rollout", "restart", t); err != nil {
 					return err
@@ -412,6 +422,8 @@ func restartCmd(d Deps) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().Bool("yes", false, "confirm when a regex matches several workloads")
+	return cmd
 }
 
 // --- images ---------------------------------------------------------------
@@ -419,9 +431,21 @@ func restartCmd(d Deps) *cobra.Command {
 func imagesCmd(d Deps) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
-		Use:   "images",
-		Short: "Every container image in use, with how many pods run it",
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Use:   "images [IMAGE-REGEX]",
+		Short: "Every container image in use, with how many pods run it; filter by regex",
+		Example: `  kp images -A
+  kp images 'nginx|envoy' -A
+  kp images ':latest$' -A      # images pinned to latest`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pattern := ""
+			if len(args) == 1 {
+				pattern = args[0]
+			}
+			m, err := match.Compile(pattern)
+			if err != nil {
+				return err
+			}
 			pods, err := listPods(d, cmd, all, "")
 			if err != nil {
 				return err
@@ -430,7 +454,7 @@ func imagesCmd(d Deps) *cobra.Command {
 			for _, p := range pods {
 				seen := map[string]bool{}
 				for _, c := range append(append([]corev1.Container{}, p.Spec.InitContainers...), p.Spec.Containers...) {
-					if !seen[c.Image] {
+					if !seen[c.Image] && m.Match(c.Image) {
 						counts[c.Image]++
 						seen[c.Image] = true
 					}
@@ -462,6 +486,7 @@ func imagesCmd(d Deps) *cobra.Command {
 
 func cleanCmd(d Deps) *cobra.Command {
 	var all, yes, completed bool
+	var matchRe string
 	cmd := &cobra.Command{
 		Use:   "clean",
 		Short: "Delete Failed and Evicted pods (dry run unless --yes)",
@@ -481,7 +506,14 @@ func cleanCmd(d Deps) *cobra.Command {
 				return err
 			}
 			var targets []corev1.Pod
+			mm, err := match.Compile(matchRe)
+			if err != nil {
+				return err
+			}
 			for _, p := range list.Items {
+				if !mm.Match(p.Name) {
+					continue
+				}
 				if p.Status.Phase == corev1.PodFailed || (completed && p.Status.Phase == corev1.PodSucceeded) {
 					targets = append(targets, p)
 				}
@@ -514,6 +546,7 @@ func cleanCmd(d Deps) *cobra.Command {
 	cmd.Flags().BoolVarP(&all, "all-namespaces", "A", false, "all namespaces")
 	cmd.Flags().BoolVar(&yes, "yes", false, "actually delete")
 	cmd.Flags().BoolVar(&completed, "completed", false, "also delete Succeeded pods")
+	cmd.Flags().StringVar(&matchRe, "match", "", "only pods whose name matches this regex")
 	return cmd
 }
 
@@ -635,10 +668,19 @@ func EncodeB64(s string) string { return base64.StdEncoding.EncodeToString([]byt
 
 func nodesCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
-		Use:     "nodes",
+		Use:     "nodes [NODE-REGEX]",
 		Aliases: []string{"nd"},
-		Short:   "Nodes with readiness, version, pod count and CPU/memory requested vs allocatable",
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Short:   "Nodes with readiness, version, pod count and CPU/memory requested vs allocatable; filter by regex",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pattern := ""
+			if len(args) == 1 {
+				pattern = args[0]
+			}
+			nm, err := match.Compile(pattern)
+			if err != nil {
+				return err
+			}
 			cs, _, err := d.client()
 			if err != nil {
 				return err
@@ -679,6 +721,9 @@ func nodesCmd(d Deps) *cobra.Command {
 			w := tabwriter.NewWriter(d.Out, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "NAME\tSTATUS\tVERSION\tPODS\tCPU REQ\tMEM REQ\tAGE")
 			for _, n := range nodes.Items {
+				if !nm.Match(n.Name) {
+					continue
+				}
 				status := "NotReady"
 				for _, c := range n.Status.Conditions {
 					if c.Type == corev1.NodeReady && c.Status == corev1.ConditionTrue {
@@ -753,16 +798,23 @@ func usageCmd(d Deps) *cobra.Command {
 func eachCmd(d Deps) *cobra.Command {
 	var selector, container string
 	cmd := &cobra.Command{
-		Use:   "each -l SELECTOR -- COMMAND...",
-		Short: "Run a command in every running pod matching a selector, one after another",
-		Example: `  kp each -l app=web -- cat /etc/hostname
-  kp each -l app=api -c app -- env`,
+		Use:   "each [POD-REGEX] [-l SELECTOR] -- COMMAND...",
+		Short: "Run a command in every running pod matching a regex and/or selector",
+		Example: `  kp each '^web-' -- cat /etc/hostname
+  kp each -l app=api -c app -- env
+  kp each api -l tier=backend -- date`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if selector == "" {
-				return fmt.Errorf("--selector (-l) is required")
+			pattern := ""
+			if dash := cmd.ArgsLenAtDash(); dash == 1 {
+				pattern, args = args[0], args[1:]
+			} else if dash < 0 {
+				return fmt.Errorf("put the command after --, e.g. kp each api -- date")
 			}
-			pods, err := listPods(d, cmd, false, selector)
+			if pattern == "" && selector == "" {
+				return fmt.Errorf("give a pod regex or --selector (-l)")
+			}
+			pods, err := matchingPods(d, cmd, pattern, false, selector)
 			if err != nil {
 				return err
 			}

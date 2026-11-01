@@ -64,6 +64,12 @@ var Verbs = map[string][]string{
 	"dbg":  {"debug"},
 	"can":  {"auth", "can-i"},
 	"canl": {"auth", "can-i", "--list"},
+	// Teleport plugin.
+	"tl":  {"tsh", "login"},
+	"tls": {"tsh", "ls"},
+	"tu":  {"tsh", "use"},
+	"ts":  {"tsh", "status"},
+	"tlo": {"tsh", "logout"},
 }
 
 // VerbHelp describes each verb alias, for "kp alias list".

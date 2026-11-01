@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 
 	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kubepilot/internal/match"
 )
 
 // AnnotationIgnore suppresses findings on the annotated object, e.g.
@@ -26,6 +27,7 @@ type Options struct {
 	Since          time.Duration // only findings that began within this window
 	IncludeUnknown bool
 	MinSeverity    Severity
+	Match          *match.Matcher // regex over "namespace/Kind/name", summary and check ID
 	Now            time.Time
 	Config         config.SilentConfig
 }
@@ -91,6 +93,9 @@ func Run(ctx context.Context, s *Snapshot, o Options) Result {
 		}
 		f.Suppressed = suppressed(f, o.Config.Suppressions, o.Now)
 		if f.Severity < o.MinSeverity {
+			continue
+		}
+		if !o.Match.Any(f.Object(), f.Summary, f.Check) {
 			continue
 		}
 		if o.Since > 0 {

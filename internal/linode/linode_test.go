@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/lyelgate/kubepilot/internal/kubeconfig"
 )
 
 func TestTokenFromLinodeCLI(t *testing.T) {
@@ -36,7 +38,7 @@ func TestMergeConfigs(t *testing.T) {
 	incoming.AuthInfos["lke123-admin"] = &api.AuthInfo{Token: "t"}
 	incoming.Contexts["lke123-ctx"] = &api.Context{Cluster: "lke123", AuthInfo: "lke123-admin", Namespace: "default"}
 
-	out := MergeConfigs(existing, incoming, "lke-dev", true)
+	out := kubeconfig.MergeConfigs(existing, incoming, "lke-dev", true)
 	if out.CurrentContext != "lke-dev" {
 		t.Errorf("current context: %q", out.CurrentContext)
 	}

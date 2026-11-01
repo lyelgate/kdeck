@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -20,16 +21,19 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kubepilot/internal/kubeconfig"
+	"github.com/lyelgate/kubepilot/internal/match"
 )
 
 // NewCtxCommand returns "kp ctx".
 func NewCtxCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ctx [NAME | -]",
-		Aliases: []string{"context", "cx"},
+		Aliases: []string{"context", "cx", "kpctx"},
 		Short:   "List or switch kubeconfig contexts (\"-\" = previous, no argument = picker)",
 		Example: `  kp ctx            # pick with fzf, or list when fzf is missing
-  kp ctx prod       # switch to "prod"
+  kp ctx prod       # switch to "prod" (exact name, or a regex with one match)
+  kp ctx 'lke.*dev' # regex; several matches open the picker
   kp ctx -          # back to the previous context
   kp ctx -c         # print the current context
   kp ctx rename old new
@@ -69,7 +73,11 @@ func NewCtxCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.C
 				}
 			}
 			if _, ok := cfg.Contexts[target]; !ok {
-				return fmt.Errorf("context %q not found (have: %s)", target, strings.Join(names, ", "))
+				resolved, err := resolve("context", target, names)
+				if err != nil {
+					return err
+				}
+				target = resolved
 			}
 			prev := cfg.CurrentContext
 			cfg.CurrentContext = target
@@ -86,6 +94,42 @@ func NewCtxCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.C
 		},
 	}
 	cmd.Flags().BoolP("current", "c", false, "print the current context")
+	var importName string
+	var importCurrent bool
+	imp := &cobra.Command{
+		Use:   "import FILE",
+		Short: "Merge a kubeconfig file into yours (backup first; entries renamed so nothing is overwritten)",
+		Example: `  kp ctx import ~/Downloads/staging.yaml --name staging --set-current
+  kp ctx import vendor-kubeconfig.yaml`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			raw, err := os.ReadFile(args[0])
+			if err != nil {
+				return err
+			}
+			name := importName
+			if name == "" {
+				if c, err := clientcmd.Load(raw); err == nil && c.CurrentContext != "" {
+					name = c.CurrentContext
+				} else {
+					name = strings.TrimSuffix(filepath.Base(args[0]), filepath.Ext(args[0]))
+				}
+			}
+			path, backup, err := kubeconfig.Merge(flags, raw, name, importCurrent)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "Imported %s as context %q into %s", args[0], name, path)
+			if backup != "" {
+				fmt.Fprintf(out, " (backup: %s)", backup)
+			}
+			fmt.Fprintln(out, ".")
+			return nil
+		},
+	}
+	imp.Flags().StringVar(&importName, "name", "", "context name (default: the file's current context)")
+	imp.Flags().BoolVar(&importCurrent, "set-current", false, "switch to the imported context")
+	cmd.AddCommand(imp)
 	cmd.AddCommand(&cobra.Command{
 		Use:   "rename OLD NEW",
 		Short: "Rename a context",
@@ -145,10 +189,11 @@ func NewCtxCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.C
 func NewNsCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ns [NAME | -]",
-		Aliases: []string{"namespace-switch"},
+		Aliases: []string{"namespace-switch", "kpns"},
 		Short:   "List or switch the current context's namespace (\"-\" = previous)",
 		Example: `  kp ns             # pick with fzf, or list when fzf is missing
-  kp ns payments    # use "payments" for the current context
+  kp ns payments    # use "payments" (exact name, or a regex with one match)
+  kp ns '^pay'      # regex
   kp ns -           # back to the previous namespace
   kp ns -c          # print the current namespace`,
 		Args: cobra.MaximumNArgs(1),
@@ -202,7 +247,11 @@ func NewNsCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Co
 			}
 			if skip, _ := cmd.Flags().GetBool("force"); !skip {
 				if names, err := listNamespaces(flags); err == nil && !contains(names, target) {
-					return fmt.Errorf("namespace %q does not exist (use --force to set it anyway)", target)
+					resolved, rerr := resolve("namespace", target, names)
+					if rerr != nil {
+						return fmt.Errorf("%v (use --force to set %q anyway)", rerr, target)
+					}
+					target = resolved
 				}
 			}
 			kc.Namespace = target
@@ -268,6 +317,31 @@ func listNamespaces(flags *genericclioptions.ConfigFlags) ([]string, error) {
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// resolve treats a name that is not an exact match as a regex: one match is
+// used, several open the picker (or are listed), none is an error.
+func resolve(what, pattern string, names []string) (string, error) {
+	m, err := match.Compile(pattern)
+	if err != nil {
+		return "", err
+	}
+	var hits []string
+	for _, n := range names {
+		if m.Match(n) {
+			hits = append(hits, n)
+		}
+	}
+	switch len(hits) {
+	case 0:
+		return "", fmt.Errorf("no %s matches %q", what, pattern)
+	case 1:
+		return hits[0], nil
+	}
+	if picked, ok := pick(hits, ""); ok {
+		return picked, nil
+	}
+	return "", fmt.Errorf("%d %ss match %q: %s", len(hits), what, pattern, strings.Join(hits, ", "))
 }
 
 func contains(list []string, s string) bool {

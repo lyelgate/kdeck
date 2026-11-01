@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/lyelgate/kubepilot/internal/alias"
 	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kubepilot/internal/quick"
 )
 
 // InitCommand returns "kp shell-init".
@@ -22,7 +25,7 @@ func InitCommand(out io.Writer) *cobra.Command {
 	var all bool
 	var name string
 	cmd := &cobra.Command{
-		Use:   "shell-init bash|zsh|fish",
+		Use:   "shell-init bash|zsh|fish|powershell|cmd",
 		Short: "Print shell aliases (k, kgpo, kdpo, ...) and completion setup to eval in your shell rc",
 		Long: `Print shell setup: an alias for kp itself (k by default), shell aliases for
 the common kubectl-aliases combinations (kgpo, kgdep, kdpo, krmpo, ...), short
@@ -32,27 +35,56 @@ Add one line to your shell rc file:
 
   bash:  echo 'eval "$(kp shell-init bash)"' >> ~/.bashrc
   zsh:   echo 'eval "$(kp shell-init zsh)"'  >> ~/.zshrc
-  fish:  echo 'kp shell-init fish | source'  >> ~/.config/fish/config.fish`,
+  fish:  echo 'kp shell-init fish | source'  >> ~/.config/fish/config.fish
+  PowerShell (Windows, macOS, Linux):
+         Add-Content $PROFILE 'kp shell-init powershell | Out-String | Invoke-Expression'
+  cmd.exe:
+         kp shell-init cmd > "%USERPROFILE%\kp-macros.cmd"   (instructions inside the file)
+
+WSL uses the Linux binary with bash or zsh.`,
 		Args:      cobra.ExactArgs(1),
-		ValidArgs: []string{"bash", "zsh", "fish"},
+		ValidArgs: []string{"bash", "zsh", "fish", "powershell", "cmd"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sh := args[0]
-			if sh != "bash" && sh != "zsh" && sh != "fish" {
-				return fmt.Errorf("unsupported shell %q (bash, zsh, fish)", sh)
+			if sh == "pwsh" {
+				sh = "powershell"
+			}
+			switch sh {
+			case "bash", "zsh", "fish", "powershell", "cmd":
+			default:
+				return fmt.Errorf("unsupported shell %q (bash, zsh, fish, powershell, cmd)", sh)
 			}
 			words := alias.Curated
 			if all {
 				words = alias.All()
 			}
-			fmt.Fprintf(out, "# kubepilot shell setup (%s)\n", sh)
+			comment := "#"
+			if sh == "cmd" {
+				comment = "@rem"
+				fmt.Fprintln(out, "@echo off")
+			}
+			fmt.Fprintf(out, "%s kubepilot shell setup (%s)\n", comment, sh)
+			if sh == "cmd" {
+				fmt.Fprintln(out, "@rem Load in every cmd.exe window by registering this file as AutoRun:")
+				_, _ = io.WriteString(out, `@rem   reg add "HKCU\Software\Microsoft\Command Processor" /v AutoRun /t REG_EXPAND_SZ /d "%USERPROFILE%\kp-macros.cmd" /f`+"\n")
+			}
 			emit := func(n, expansion string) {
-				if sh == "fish" {
+				switch sh {
+				case "fish":
 					fmt.Fprintf(out, "alias %s '%s'\n", n, expansion)
-				} else {
+				case "powershell":
+					// PowerShell aliases cannot carry arguments; functions can.
+					fmt.Fprintf(out, "function %s { %s @args }\n", n, expansion)
+				case "cmd":
+					fmt.Fprintf(out, "doskey %s=%s $*\n", n, expansion)
+				default:
 					fmt.Fprintf(out, "alias %s='%s'\n", n, expansion)
 				}
 			}
 			emit(name, "kp")
+			for _, n := range quick.KPNames {
+				emit(n, "kp "+n)
+			}
 			for _, h := range [][2]string{
 				{"kctx", "kp ctx"}, {"kns", "kp ns"}, {"kwho", "kp who"}, {"kbad", "kp bad"},
 				{"ksf", "kp silent"}, {"ksh", "kp sh"}, {"ktail", "kp tail"}, {"kneat", "kp neat"},
@@ -92,6 +124,8 @@ Add one line to your shell rc file:
 				fmt.Fprintf(out, "source <(kp completion zsh)\ncompdef _kp %s 2>/dev/null\n", name)
 			case "fish":
 				fmt.Fprintf(out, "kp completion fish | source\ncomplete -c %s -w kp\n", name)
+			case "powershell":
+				fmt.Fprintln(out, "kp completion powershell | Out-String | Invoke-Expression")
 			}
 			return nil
 		},
@@ -115,8 +149,22 @@ func AliasCommand(out io.Writer) *cobra.Command {
 	}
 	var all bool
 	list := &cobra.Command{
-		Use: "list", Aliases: []string{"ls"}, Short: "List shortcuts",
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Use: "list [REGEX]", Aliases: []string{"ls"}, Short: "List shortcuts, optionally filtered by a regex over name and expansion",
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pattern := ""
+			if len(args) == 1 {
+				pattern = args[0]
+			}
+			re, err := match.Compile(pattern)
+			if err != nil {
+				return err
+			}
+			row := func(tw io.Writer, name, exp, kind string) {
+				if re.Any(name, exp) {
+					fmt.Fprintf(tw, "%s\tkubectl %s\t%s\n", name, exp, kind)
+				}
+			}
 			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "SHORTCUT\tEXPANDS TO\tKIND")
 			cfg, _ := config.Load()
@@ -127,7 +175,7 @@ func AliasCommand(out io.Writer) *cobra.Command {
 				}
 				sort.Strings(keys)
 				for _, k := range keys {
-					fmt.Fprintf(tw, "%s\tkubectl %s\tyours\n", k, cfg.Aliases[k])
+					row(tw, k, cfg.Aliases[k], "yours")
 				}
 			}
 			verbs := make([]string, 0, len(alias.Verbs))
@@ -136,7 +184,7 @@ func AliasCommand(out io.Writer) *cobra.Command {
 			}
 			sort.Strings(verbs)
 			for _, k := range verbs {
-				fmt.Fprintf(tw, "%s\tkubectl %s\tverb\n", k, alias.VerbHelp[k])
+				row(tw, k, alias.VerbHelp[k], "verb")
 			}
 			words := alias.Curated
 			if all {
@@ -144,7 +192,7 @@ func AliasCommand(out io.Writer) *cobra.Command {
 			}
 			for _, w := range words {
 				exp, _ := alias.ParseCombo(w)
-				fmt.Fprintf(tw, "%s\tkubectl %s\tcombo\n", w, strings.Join(exp, " "))
+				row(tw, w, strings.Join(exp, " "), "combo")
 			}
 			if err := tw.Flush(); err != nil {
 				return err
@@ -236,20 +284,38 @@ func ShortcutsCommand(out io.Writer) *cobra.Command {
 			if err := os.MkdirAll(dir, 0o755); err != nil {
 				return err
 			}
-			words := append([]string{"k"}, alias.Curated...)
+			words := append(append([]string{"k"}, quick.KPNames...), alias.Curated...)
 			if all {
-				words = append([]string{"k"}, alias.All()...)
+				words = append(append([]string{"k"}, quick.KPNames...), alias.All()...)
 			}
 			n := 0
 			for _, w := range words {
-				link := filepath.Join(dir, w)
-				_ = os.Remove(link)
-				if err := os.Symlink(self, link); err != nil {
-					return err
+				if runtime.GOOS == "windows" {
+					// Symlinks need admin rights on Windows; a .cmd shim works
+					// in cmd.exe and PowerShell alike.
+					shim := filepath.Join(dir, w+".cmd")
+					body := fmt.Sprintf("@echo off\r\n\"%s\" %s %%*\r\n", self, w)
+					if w == "k" {
+						body = fmt.Sprintf("@echo off\r\n\"%s\" %%*\r\n", self)
+					}
+					if err := os.WriteFile(shim, []byte(body), 0o755); err != nil {
+						return err
+					}
+				} else {
+					link := filepath.Join(dir, w)
+					_ = os.Remove(link)
+					if err := os.Symlink(self, link); err != nil {
+						return err
+					}
 				}
 				n++
 			}
-			fmt.Fprintf(out, "Linked %d shortcuts in %s. Add it to PATH:\n  export PATH=\"%s:$PATH\"\n", n, dir, dir)
+			fmt.Fprintf(out, "Created %d shortcuts in %s (kplog, kpns, kgpo, ...). Add it to PATH:\n", n, dir)
+			if runtime.GOOS == "windows" {
+				fmt.Fprintf(out, "  setx PATH \"%s;%%PATH%%\"\n", dir)
+			} else {
+				fmt.Fprintf(out, "  export PATH=\"%s:$PATH\"\n", dir)
+			}
 			return nil
 		},
 	}

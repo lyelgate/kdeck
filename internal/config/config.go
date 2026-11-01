@@ -23,9 +23,18 @@ import (
 type Config struct {
 	// Aliases maps a word to the arguments it expands to, for example
 	// "kgpr": "get pods --field-selector=status.phase=Running".
-	Aliases map[string]string `json:"aliases,omitempty"`
-	Silent  SilentConfig      `json:"silent,omitempty"`
-	Linode  LinodeConfig      `json:"linode,omitempty"`
+	Aliases  map[string]string `json:"aliases,omitempty"`
+	Silent   SilentConfig      `json:"silent,omitempty"`
+	Linode   LinodeConfig      `json:"linode,omitempty"`
+	Teleport TeleportConfig    `json:"teleport,omitempty"`
+}
+
+// TeleportConfig is set once by "kp setup" or "kp tsh setup"; afterwards the
+// short commands (kp tl, kp tls, kp tu) need nothing else.
+type TeleportConfig struct {
+	Proxy string `json:"proxy,omitempty"` // e.g. teleport.example.com:443
+	User  string `json:"user,omitempty"`  // optional; tsh defaults to the local user
+	Auth  string `json:"auth,omitempty"`  // optional auth connector (github, okta, ...)
 }
 
 // SilentConfig tunes "kp silent".

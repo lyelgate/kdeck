@@ -21,6 +21,14 @@ kp linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubectl
 - [Silent-failure detection](#silent-failure-detection-kp-silent)
 - [Plugins (krew-compatible)](#plugins-krew-compatible)
 - [Linode LKE](#linode-lke)
+- [Regex everywhere](#regex-everywhere)
+- [One pod by regex: kplog abc](#one-pod-by-regex-kplog-abc)
+- [Stern-style logs](#stern-style-logs-kp-tail-also-kp-stern)
+- [Port-forward shortcuts](#port-forward-shortcuts-kp-pf)
+- [Clusters on AWS, Google Cloud and Azure](#clusters-on-aws-google-cloud-and-azure)
+- [Teleport plugin](#teleport-plugin-tsh)
+- [Setup and diagnostics](#setup-and-diagnostics)
+- [Platforms](#platforms)
 - [Shell integration](#shell-integration)
 - [Configuration reference](#configuration-reference)
 - [Security notes](#security-notes)
@@ -149,11 +157,11 @@ The previous context and per-context namespace are remembered in `~/.kp/state.js
 | Command | Does |
 | --- | --- |
 | `kp who` | Context, cluster, server, namespace, the identity the API server sees (SelfSubjectReview), server version |
-| `kp pods [filter] [-A] [-l sel] [--bad]` | Pods sorted problems first, with the real status (`CrashLoopBackOff`, `ImagePullBackOff`, `OOMKilled`) and restarts |
+| `kp pods [regex] [-A] [-l sel] [--bad]` | Pods sorted problems first, with the real status (`CrashLoopBackOff`, `ImagePullBackOff`, `OOMKilled`) and restarts |
 | `kp bad` | Unhealthy pods in all namespaces |
 | `kp nodes` | Readiness, cordon state, kubelet version, pods used/allocatable, CPU and memory requested vs allocatable |
-| `kp sh POD [-c c] [-- cmd]` | Shell into a pod: bash if present, otherwise sh |
-| `kp tail SELECTOR or TYPE/NAME` | Follow logs of every pod and container of an app, prefixed (`--since`, `--lines`, `--no-follow`) |
+| `kp sh POD-REGEX [-c c] [-- cmd]` | Shell into the best matching pod: bash if present, otherwise sh |
+| `kp tail POD-REGEX or TYPE/NAME` | Stern-style multi-pod logs (see below) |
 | `kp restart TYPE/NAME...` | Rolling restart, then wait for each rollout to finish |
 | `kp images [-A]` | Every image in use and how many pods run it |
 | `kp neat TYPE/NAME` | YAML without status, managedFields, uid, resourceVersion and last-applied, ready to re-apply |
@@ -283,12 +291,124 @@ Uses the official `linodego` SDK. The token comes from `--token`, `LINODE_TOKEN`
 
 From zero to kubectl in one line: `kp linode lke kubeconfig 12345 --merge --set-current && kp get nodes`.
 
+## Regex everywhere
+
+Every name argument is a **regular expression with smart case**: lower-case patterns ignore case, a pattern with an upper-case letter matches exactly. `api` matches `payments-API-7d9f`; `^web-[0-9]+$` matches `web-12` only.
+
+| Where | Regex applies to |
+| --- | --- |
+| `kp log/desc/img/po/pod/sh/pf/tail` | pod (or Service) names; containers with `-c` |
+| `kp pods`, `kp nodes`, `kp images` | names, node names, image references |
+| `kp find REGEX [kinds]` | names (and labels with `--labels`) across many kinds, any CRD |
+| `kp restart`, `kp each`, `kp clean --match` | workload / pod names |
+| `kp ctx`, `kp ns`, `kp tu`, `kp eks/gke/aks use` | context, namespace, Teleport and cloud cluster names (exact name wins) |
+| `kp silent -m`, `kp plugin search`, `kp alias list` | findings, plugins, shortcuts |
+| `kp tail -i/-e` | log lines to include / exclude |
+
+## One pod by regex: `kplog abc`
+
+These commands pick **one pod**: an exact name wins, otherwise the best running and ready match; with several matches fzf opens on a terminal, otherwise the best one is used and the rest are named. `--all` acts on every match. Pod names cannot contain `_` (Kubernetes allows lower-case letters, digits, `-` and `.`).
+
+| Command | kp-prefixed name | Does |
+| --- | --- | --- |
+| `kp log abc [-f] [-p] [-c re] [--all]` | `kplog` | Logs (all containers prefixed; `--all` = every match, stern-style) |
+| `kp desc abc [--all]` | `kpdesc` | `kubectl describe pod` |
+| `kp img abc [--all]` | `kpimg` | Each container's image and the digest actually running |
+| `kp po abc [-o yaml]` | `kppo` | `kubectl get pods -o wide` for every match |
+| `kp pod abc` | `kppod` | Detail card: node, IP, owner, QoS, containers, restarts, last crash, recent warnings |
+| `kp sh abc [-- cmd]` | `kpsh` | Shell into the best match |
+| `kp pf abc [ports]` | `kppf` | Port-forward (below) |
+| `kp tail abc` | `kptail` | Stern-style logs (below) |
+| `kp ns re` / `kp ctx re` | `kpns` / `kpctx` | Switch namespace / context |
+
+`kp shortcuts install` creates all of these as real commands (symlinks on macOS and Linux, `.cmd` shims on Windows), so `kplog abc` works directly in any shell.
+
+## Stern-style logs: `kp tail` (also `kp stern`)
+
+Built in, no stern binary needed. Follows every pod matching a regex and every container matching `-c`; in follow mode it watches the API, so pods from scale-ups and rollouts join automatically and restarted containers resume without repeating history. Colour per pod.
+
+```sh
+kp tail api                        # every pod with "api" in the name
+kp tail '^web-' -c nginx           # nginx containers only
+kp tail . -A -i error -e healthz   # all pods, lines with "error", without "healthz"
+kp tail deploy/api --since 10m     # pods of a workload
+kp tail api -l tier=backend -t     # regex + selector, with timestamps
+```
+
+Flags: `-c` container regex, `-E` exclude pods, `-i`/`-e` include/exclude lines (repeatable), `-l` selector, `--since`, `--tail`, `--no-follow`, `-t`, `--init-containers`, `--color auto|always|never`, `-A`.
+
+## Port-forward shortcuts: `kp pf`
+
+```sh
+kp pf grafana              # finds svc/grafana, forwards all its ports (80 -> localhost:8080)
+kp pf api 9000:8080        # Service matching "api", explicit ports
+kp pf '^web-0$' --pod      # a pod instead of a Service
+kp pf deploy/api 8080      # TYPE/NAME goes straight to kubectl
+kp pf grafana --address 0.0.0.0
+```
+
+Services are preferred over pods; ports below 1024 map to +8000 locally so no root is needed; several matches open the picker or are listed.
+
+## Clusters on AWS, Google Cloud and Azure
+
+kp uses each provider's official CLI, so your existing logins, SSO and profiles work. Connecting backs up the kubeconfig first; `--name` gives the context a short name.
+
+| Command | Uses | Does |
+| --- | --- | --- |
+| `kp eks ls [re] [--region] [--profile]` | `aws` | List EKS clusters |
+| `kp eks use re [--region] [--name prod]` | `aws eks update-kubeconfig` | Connect and switch |
+| `kp gke ls [re] [--project]` | `gcloud` | List GKE clusters |
+| `kp gke use re [--name]` | `gcloud container clusters get-credentials` | Connect (needs `gke-gcloud-auth-plugin`) |
+| `kp aks ls [re] [--subscription]` | `az` | List AKS clusters |
+| `kp aks use re [--name] [--kubelogin]` | `az aks get-credentials` (+ `kubelogin convert-kubeconfig -l azurecli`) | Connect, Entra ID clusters too |
+| `kp ctx import FILE [--name] [--set-current]` | - | Merge any kubeconfig (backup, no overwrites) |
+
+Credential plugins in kubeconfigs (`aws`, `gke-gcloud-auth-plugin`, `kubelogin`, `tsh`) work unchanged because kp uses client-go; `kp doctor` reports any that are missing.
+
+## Teleport plugin (`tsh`)
+
+Set up once; it asks only for the proxy:
+
+```sh
+kp setup                    # or: kp tsh setup tp.example.com:443
+```
+
+Then:
+
+| Short | Full | Does |
+| --- | --- | --- |
+| `kp tl` | `kp tsh login` | `tsh login --proxy=<saved>` (plus saved `--user` / `--auth`) |
+| `kp tls [re]` | `kp tsh ls` | Kubernetes clusters you can reach, filtered by regex (logs in first if needed) |
+| `kp tu re` | `kp tsh use` | `tsh kube login <match>` and switch kubectl (logs in first if needed) |
+| `kp ts` | `kp tsh status` | Session status |
+| `kp tlo` | `kp tsh logout` | Log out |
+| | `kp tsh -- ARGS` | Anything else, passed to tsh |
+
+kp wraps the official tsh binary (install from goteleport.com/download, `brew install teleport`, or `winget install Teleport.Teleport`) and never handles Teleport credentials itself.
+
+## Setup and diagnostics
+
+- `kp setup`: one question (Teleport proxy, Enter to skip), then the tools found and the exact line for your shell; `--write-rc` appends it for bash, zsh or fish.
+- `kp doctor [--all-contexts]`: kubeconfig, auth type and credential plugin per context, cluster reachability, kubectl/cluster version skew (warns outside ±1 minor), tools, Teleport session.
+
+## Platforms
+
+| OS | CPU | Shells |
+| --- | --- | --- |
+| macOS | Apple silicon (arm64), Intel (amd64) | zsh, bash, fish, PowerShell |
+| Linux, including WSL | amd64, arm64 | bash, zsh, fish, PowerShell |
+| Windows | amd64, arm64 | PowerShell, cmd.exe |
+
+`make dist` builds all six binaries. On Windows, `kp shortcuts install` writes `.cmd` shims (no admin rights needed) and `kp shell-init powershell` / `kp shell-init cmd` generate PowerShell functions or doskey macros.
+
 ## Shell integration
 
 ```sh
 echo 'eval "$(kp shell-init zsh)"'  >> ~/.zshrc                 # zsh
 echo 'eval "$(kp shell-init bash)"' >> ~/.bashrc                # bash
 echo 'kp shell-init fish | source'  >> ~/.config/fish/config.fish
+Add-Content $PROFILE 'kp shell-init powershell | Out-String | Invoke-Expression'   # PowerShell
+kp shell-init cmd > "%USERPROFILE%\kp-macros.cmd"                                  # cmd.exe (see file)
 ```
 
 Adds `k` for kp (`--name` to change it), helpers (`kctx`, `kns`, `kwho`, `kbad`, `ksf`, `ksh`, `ktail`, `kneat`), 62 common combinations (`--all` for about 950), your own aliases, and completion for `kp` and `k`. Completion alone: `kp completion bash|zsh|fish|powershell`.

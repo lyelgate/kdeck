@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kubepilot/internal/match"
 )
 
 // ExitError carries a process exit code without printing an error.
@@ -27,6 +28,7 @@ func NewCommand(flags *genericclioptions.ConfigFlags, out io.Writer, version str
 		sensitive, includeUnknown, explain bool
 		showSuppressed, list               bool
 		output, sinceStr, minSev, failOn   string
+		matchRe                            string
 	)
 	cmd := &cobra.Command{
 		Use:     "silent",
@@ -46,7 +48,8 @@ the evidence, and what to do next. Read-only; safe on production clusters.`,
   kp silent --since 24h             # only failures that started in the last day
   kp silent -o markdown > report.md # shareable report
   kp silent -o json --fail-on high  # CI: exit 1 on high or critical
-  kp silent --list                  # show the check catalogue`,
+  kp silent --list                  # show the check catalogue
+  kp silent -m 'payments|billing'   # regex over object, summary and check ID`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if list {
 				return printCatalogue(out)
@@ -64,6 +67,10 @@ the evidence, and what to do next. Read-only; safe on production clusters.`,
 				return err
 			}
 			failAt, err := ParseSeverity(failOn)
+			if err != nil {
+				return err
+			}
+			m, err := match.Compile(matchRe)
 			if err != nil {
 				return err
 			}
@@ -93,7 +100,7 @@ the evidence, and what to do next. Read-only; safe on production clusters.`,
 			res := Run(cmd.Context(), NewSnapshot(cs, dyn, ns), Options{
 				Checks: splitList(checks), Skip: splitList(skip), Sensitive: sensitive,
 				Since: since, IncludeUnknown: includeUnknown, MinSeverity: minSeverity,
-				Now: now, Config: cfg.Silent,
+				Now: now, Config: cfg.Silent, Match: m,
 			})
 			res.Cluster, res.Version = cluster, version
 			if err := Write(out, res, output, now, showSuppressed); err != nil {
@@ -125,6 +132,7 @@ the evidence, and what to do next. Read-only; safe on production clusters.`,
 	f.BoolVar(&explain, "explain-skipped", false, "list checks that could not run and why")
 	f.BoolVar(&showSuppressed, "show-suppressed", false, "include suppressed findings")
 	f.BoolVar(&list, "list", false, "print the check catalogue and exit")
+	f.StringVarP(&matchRe, "match", "m", "", "only findings whose object, summary or check ID matches this regex")
 	return cmd
 }
 

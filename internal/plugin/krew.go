@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kubepilot/internal/match"
 )
 
 // IndexURL is the krew index archive.
@@ -248,16 +249,19 @@ func All() ([]*Manifest, error) {
 	return out, nil
 }
 
-// Search returns plugins whose name or description contains the query.
+// Search returns plugins whose name or description matches the regex.
 func Search(q string) ([]*Manifest, error) {
+	re, err := match.Compile(q)
+	if err != nil {
+		return nil, err
+	}
 	all, err := All()
 	if err != nil {
 		return nil, err
 	}
-	q = strings.ToLower(q)
 	var out []*Manifest
 	for _, m := range all {
-		if q == "" || strings.Contains(strings.ToLower(m.Metadata.Name), q) || strings.Contains(strings.ToLower(m.Spec.ShortDescription), q) {
+		if re.Any(m.Metadata.Name, m.Spec.ShortDescription) {
 			out = append(out, m)
 		}
 	}

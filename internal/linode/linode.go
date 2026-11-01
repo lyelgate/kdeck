@@ -15,17 +15,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/linode/linodego"
+	"github.com/lyelgate/kubepilot/internal/kubeconfig"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 type opts struct {
@@ -246,7 +244,7 @@ func lkeCmd(o *opts) *cobra.Command {
 				if name == "" {
 					name = "lke-" + k.Label
 				}
-				path, backup, err := Merge(o.flags, raw, name, setCurrent)
+				path, backup, err := kubeconfig.Merge(o.flags, raw, name, setCurrent)
 				if err != nil {
 					return err
 				}
@@ -452,72 +450,6 @@ func printPools(cx context.Context, c *linodego.Client, id int, out io.Writer) e
 		rows = append(rows, []string{strconv.Itoa(p.ID), p.Type, fmt.Sprintf("%d/%d", ready, p.Count), auto, strings.Join(p.Tags, ",")})
 	}
 	return table(out, "POOL\tTYPE\tREADY/COUNT\tAUTOSCALE\tTAGS", rows)
-}
-
-// Merge adds an LKE kubeconfig to the user's kubeconfig under a new context
-// name, renaming its cluster and user entries to match so repeated merges of
-// different clusters never collide. The existing file is backed up first.
-func Merge(flags *genericclioptions.ConfigFlags, raw []byte, name string, setCurrent bool) (string, string, error) {
-	incoming, err := clientcmd.Load(raw)
-	if err != nil {
-		return "", "", fmt.Errorf("parsing LKE kubeconfig: %w", err)
-	}
-	access := flags.ToRawKubeConfigLoader().ConfigAccess()
-	path := access.GetDefaultFilename()
-	existing, err := access.GetStartingConfig()
-	if err != nil {
-		return "", "", err
-	}
-	backup := ""
-	if data, err := os.ReadFile(path); err == nil {
-		backup = fmt.Sprintf("%s.kp-backup-%s", path, time.Now().Format("20060102-150405"))
-		if err := os.WriteFile(backup, data, 0o600); err != nil {
-			return "", "", fmt.Errorf("writing backup: %w", err)
-		}
-	}
-	merged := MergeConfigs(existing, incoming, name, setCurrent)
-	if err := clientcmd.ModifyConfig(access, *merged, true); err != nil {
-		return "", "", err
-	}
-	return path, backup, nil
-}
-
-// MergeConfigs is the pure part of Merge, exposed for tests.
-func MergeConfigs(existing, incoming *api.Config, name string, setCurrent bool) *api.Config {
-	out := existing.DeepCopy()
-	if out.Clusters == nil {
-		out.Clusters = map[string]*api.Cluster{}
-	}
-	if out.AuthInfos == nil {
-		out.AuthInfos = map[string]*api.AuthInfo{}
-	}
-	if out.Contexts == nil {
-		out.Contexts = map[string]*api.Context{}
-	}
-	ctxNames := make([]string, 0, len(incoming.Contexts))
-	for n := range incoming.Contexts {
-		ctxNames = append(ctxNames, n)
-	}
-	sort.Strings(ctxNames)
-	for i, n := range ctxNames {
-		c := incoming.Contexts[n]
-		target := name
-		if i > 0 {
-			target = fmt.Sprintf("%s-%d", name, i+1)
-		}
-		cluster, user := target, target+"-admin"
-		if cl, ok := incoming.Clusters[c.Cluster]; ok {
-			out.Clusters[cluster] = cl.DeepCopy()
-		}
-		if au, ok := incoming.AuthInfos[c.AuthInfo]; ok {
-			out.AuthInfos[user] = au.DeepCopy()
-		}
-		out.Contexts[target] = &api.Context{Cluster: cluster, AuthInfo: user, Namespace: c.Namespace}
-		if setCurrent && i == 0 {
-			out.CurrentContext = target
-		}
-	}
-	return out
 }
 
 // --- other resources ----------------------------------------------------------------

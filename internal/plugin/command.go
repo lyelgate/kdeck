@@ -49,9 +49,9 @@ Every download is checked against the sha256 in the index.`,
 			},
 		},
 		&cobra.Command{
-			Use:     "search [QUERY]",
+			Use:     "search [REGEX]",
 			Aliases: []string{"find"},
-			Short:   "Search plugins by name or description",
+			Short:   "Search plugins by name or description (regex, smart case)",
 			Args:    cobra.MaximumNArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				q := ""

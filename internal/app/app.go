@@ -20,13 +20,16 @@ import (
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	"github.com/lyelgate/kubepilot/internal/alias"
+	"github.com/lyelgate/kubepilot/internal/cloud"
 	"github.com/lyelgate/kubepilot/internal/config"
 	"github.com/lyelgate/kubepilot/internal/kctx"
 	"github.com/lyelgate/kubepilot/internal/linode"
 	"github.com/lyelgate/kubepilot/internal/plugin"
 	"github.com/lyelgate/kubepilot/internal/quick"
+	"github.com/lyelgate/kubepilot/internal/setup"
 	"github.com/lyelgate/kubepilot/internal/shell"
 	"github.com/lyelgate/kubepilot/internal/silent"
+	"github.com/lyelgate/kubepilot/internal/teleport"
 )
 
 // Version is set at build time with -ldflags "-X .../internal/app.Version=v0.1.0".
@@ -154,11 +157,15 @@ Run "kp shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
 		silent.NewCommand(flags, out, Version),
 		plugin.NewCommand(out),
 		linode.NewCommand(flags, out),
+		teleport.NewCommand(out),
+		setup.NewSetupCommand(out),
+		setup.NewDoctorCommand(flags, out, Version, kubectlVersion()),
 		shell.AliasCommand(out),
 		shell.InitCommand(out),
 		shell.ShortcutsCommand(out),
 		aboutCommand(out),
 	}
+	kpCmds = append(kpCmds, cloud.NewCommands(flags, out)...)
 	for _, c := range kpCmds {
 		c.GroupID = "kp"
 		root.AddCommand(c)

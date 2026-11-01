@@ -28,6 +28,7 @@ import (
 	"github.com/lyelgate/kubepilot/internal/linode"
 	"github.com/lyelgate/kubepilot/internal/plugin"
 	"github.com/lyelgate/kubepilot/internal/quick"
+	"github.com/lyelgate/kubepilot/internal/selfupdate"
 	"github.com/lyelgate/kubepilot/internal/setup"
 	"github.com/lyelgate/kubepilot/internal/shell"
 	"github.com/lyelgate/kubepilot/internal/silent"
@@ -40,7 +41,7 @@ var Version = "dev"
 
 // names under which the binary behaves as plain kp (anything else is
 // treated as a shortcut name, busybox style: a symlink named kgpo runs "kp kgpo").
-var selfNames = map[string]bool{"kp": true, "kubepilot": true, "k": true, "kubectl": true}
+var selfNames = map[string]bool{"kp": true, "kubepilot": true, "k": true, "kubectl": true, "kubectl-kp": true}
 
 // Run executes kp with the process arguments and returns the exit code.
 func Run(argv []string) int {
@@ -224,6 +225,8 @@ Run "kp shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
 		workspace.PromptCommand(out),
 		workspace.ProfileCommand(flags, out),
 		workspace.CompareCommand(flags, out),
+		workspace.SettingsCommand(out),
+		selfupdate.NewCommand(out, Version),
 		setup.NewSetupCommand(out),
 		setup.NewDoctorCommand(flags, out, Version, kubectlVersion()),
 		shell.AliasCommand(out),

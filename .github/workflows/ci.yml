@@ -1,0 +1,63 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: unit (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build -o bin/ ./cmd/kp
+
+  cross-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: build all release targets
+        run: |
+          for p in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            GOOS=${p%/*} GOARCH=${p#*/} CGO_ENABLED=0 go build -o /dev/null ./cmd/kp
+          done
+
+  e2e:
+    name: e2e (Kubernetes ${{ matrix.node }})
+    needs: unit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The embedded kubectl is supported within +/-1 minor of the cluster.
+        # Use exact kindest/node tags from the kind release notes
+        # (https://github.com/kubernetes-sigs/kind/releases); keep this list
+        # at the embedded minor, one below and one above when available.
+        node: ["v1.37.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build -o bin/kp ./cmd/kp
+      - uses: helm/kind-action@v1
+        with:
+          node_image: kindest/node:${{ matrix.node }}
+          cluster_name: kp-e2e
+      - name: planted silent failures, guard and shortcuts
+        run: ./hack/e2e.sh ./bin/kp

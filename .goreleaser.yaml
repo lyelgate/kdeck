@@ -1,0 +1,118 @@
+# GoReleaser v2: builds, packages, signs and publishes kp on every v* tag.
+# Run locally without publishing: goreleaser release --snapshot --clean --skip=publish,sign,sbom
+version: 2
+project_name: kp
+
+before:
+  hooks:
+    - go mod download
+    - go test ./...
+
+builds:
+  - id: kp
+    main: ./cmd/kp
+    binary: kp
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/lyelgate/kubepilot/internal/app.Version={{ .Tag }}
+
+archives:
+  - id: kp
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    # kp update expects exactly this name.
+    name_template: "kp_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [README.md, LICENSE*]
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+# Keyless signing in GitHub Actions (OIDC). Verify with:
+#   cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig \
+#     --certificate-identity-regexp 'github.com/lyelgate/kubepilot' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args: ["sign-blob", "--output-certificate=${certificate}", "--output-signature=${signature}", "${artifact}", "--yes"]
+    artifacts: checksum
+
+nfpms:
+  - id: packages
+    package_name: kp
+    vendor: kubepilot
+    homepage: https://github.com/lyelgate/kubepilot
+    maintainer: Lakhan Yelgate <39281685+lyelgate@users.noreply.github.com>
+    description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
+    formats: [deb, rpm, apk]
+    bindir: /usr/bin
+
+brews:
+  - name: kp
+    repository:
+      owner: lyelgate
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/lyelgate/kubepilot
+    description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
+    install: |
+      bin.install "kp"
+    test: |
+      system "#{bin}/kp", "about"
+    skip_upload: auto
+
+scoops:
+  - name: kp
+    repository:
+      owner: lyelgate
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: https://github.com/lyelgate/kubepilot
+    description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
+    skip_upload: auto
+
+# Off until the accounts exist: a krew-index fork (kubectl kp) and a
+# winget-pkgs fork. Set skip_upload: false once they do.
+krews:
+  - name: kp
+    repository:
+      owner: lyelgate
+      name: krew-index
+      token: "{{ .Env.KREW_INDEX_TOKEN }}"
+    homepage: https://github.com/lyelgate/kubepilot
+    short_description: kubectl plus shortcuts, silent-failure checks and cloud helpers
+    description: |
+      kp (kubepilot): every kubectl command plus regex shortcuts, stern-style logs,
+      silent-failure detection, production guardrails, multi-cluster commands,
+      EKS/GKE/AKS/LKE and Teleport helpers. Run as "kubectl kp".
+    skip_upload: true
+
+winget:
+  - name: kubepilot
+    publisher: lyelgate
+    short_description: kubectl plus shortcuts, silent-failure checks and cloud helpers
+    license: TBD
+    repository:
+      owner: lyelgate
+      name: winget-pkgs
+      token: "{{ .Env.WINGET_TOKEN }}"
+    skip_upload: true
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^test:", "^chore:"]
+
+release:
+  draft: false
+  prerelease: auto

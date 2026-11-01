@@ -29,6 +29,11 @@ kp linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubectl
 - [Teleport plugin](#teleport-plugin-tsh)
 - [Setup and diagnostics](#setup-and-diagnostics)
 - [Platforms](#platforms)
+- [Production safety](#production-safety)
+- [Many clusters](#many-clusters)
+- [Troubleshooting](#troubleshooting)
+- [Cost](#cost)
+- [Install, update, settings](#install-update-settings)
 - [Shell integration](#shell-integration)
 - [Configuration reference](#configuration-reference)
 - [Security notes](#security-notes)
@@ -205,6 +210,20 @@ medium    SF-PDB-001      broken/PodDisruptionBudget/web                2m24s ag
 | SF-ROLLOUT-001 | workload | Deployments past their progress deadline; ReplicaSets that cannot create pods (quota, missing SA, webhook denial) | condition transition |
 | SF-FINALIZER-001 | workload | Namespaces, PVCs, PVs and pods stuck in deletion | `deletionTimestamp` |
 | SF-VOL-001 | storage | VolumeAttachments with attach/detach errors or never attached | `attachError.time` |
+| SF-CERT-003 | certificate | API server serving certificate expiring | certificate expiry |
+| SF-CERT-004 | certificate | Certificate signing requests pending (kubelet ones are high) | creation |
+| SF-ROLLOUT-002 | workload | StatefulSet/DaemonSet rollouts that never finish | - |
+| SF-VOL-002 | storage | PVC filesystem resize pending | condition transition |
+| SF-VOL-003 | storage | Volume nearly full, or filesystem smaller than its PVC (kubelet stats; `--sensitive`) | - |
+| SF-VOL-004 | storage | Released/Failed PVs still billing | - |
+| SF-NODE-001 / 002 | node | Cordoned and forgotten / NotReady for over an hour | taint time / condition transition |
+| SF-QUOTA-001 | workload | ResourceQuota at its limit | - |
+| SF-POD-001 | workload | 100+ failed or evicted pods left in a namespace | oldest pod |
+| SF-HELM-001 | gitops | Helm release stuck pending (blocks every upgrade) or failed; metadata only, no Secret data | release Secret creation |
+| SF-GITOPS-001 | gitops | Argo CD apps Degraded/OutOfSync; Flux Kustomizations, HelmReleases, GitRepositories not Ready or suspended | condition transition |
+| SF-API-002 | control | Deprecated APIs still being called (API server metrics), high when removed in the next minor | - |
+
+**In-cluster mode:** `kp silent serve` re-runs the checks every interval and serves `/metrics` (`silent_finding`, `silent_finding_since_timestamp_seconds`, `silent_findings_total`, `silent_check_skipped`, `silent_last_run_timestamp_seconds`), `/findings` and `/healthz`; undated findings get a first-seen time. `kp silent manifest [--sensitive] [--prometheus-rule] | kubectl apply -f -` installs it with read-only RBAC.
 
 `kp silent --list` prints the catalogue. Checks whose API is not installed (for example Velero) are listed with `--explain-skipped`.
 
@@ -401,6 +420,60 @@ kp wraps the official tsh binary (install from goteleport.com/download, `brew in
 
 `make dist` builds all six binaries. On Windows, `kp shortcuts install` writes `.cmd` shims (no admin rights needed) and `kp shell-init powershell` / `kp shell-init cmd` generate PowerShell functions or doskey macros.
 
+## Production safety
+
+| Setting | Effect |
+| --- | --- |
+| `kp safety prod add 'prod\|live'` | Writes (`apply`, `delete`, `scale`, `drain`, `rollout restart`, `edit`, `kp restart`, `kp clean --yes`, ...) on matching contexts need the context name typed back. `apply` shows `kubectl diff` first (`kp safety diff off` to skip) |
+| `kp safety ro add '^audit-'` | Matching contexts refuse writes **and** exec (`exec`, `kp sh`, `kp each`, `kp node-sh`) |
+| `kp --ro ...` or `KP_RO=1` | One-off read-only |
+| `KP_CONFIRM_CONTEXT=<ctx>` | Confirms production writes in scripts and CI |
+| `kp history [regex] [--undo]` | Every write and exec run through kp, with exit code and an undo command where known (scale back to the previous replica count, rollout undo, uncordon) |
+
+`--dry-run`, `diff` and `--help` always pass. `kp safety` lists every context with its protection.
+
+## Many clusters
+
+| Command | Does |
+| --- | --- |
+| `kp -C 'prod-.*' get pods -l app=api` | Runs on every matching context in parallel and merges output with a CONTEXT column; works for kp commands too (`kp -C . silent`, `kp -C . bad`). Writes across contexts need the count typed (or `KP_CONFIRM_MULTI=N`); any read-only context in the set blocks writes |
+| `kh prod` (`kp here`) | This terminal only switches context (`-n ns` too); other terminals keep theirs. `kh --off` returns to the shared kubeconfig |
+| `kp prompt` | `ctx/ns` for your prompt: red on production, blue when read-only; reads only the kubeconfig, so it is fast |
+| `kp profile save NAME [--teleport CLUSTER]` / `kp profile NAME` | Teleport login, context and namespace in one step |
+| `kp compare A B` (`ctx:ns`) | Drift in images, replicas, requests/limits, env names, config refs and volumes between two namespaces or clusters; `-m` to filter workloads |
+
+## Troubleshooting
+
+| Command | Does |
+| --- | --- |
+| `kp why POD-REGEX` | Plain-language diagnosis with evidence and next steps: unschedulable (reason), image pull errors (not found / unauthorized / network), crash loops with exit-code meaning (137 OOM, 127, 143 ...), missing config, failing readiness probes, stuck mounts, eviction, stuck termination |
+| `kp trace URL` | Ingress or HTTPRoute → TLS secret → Service port → endpoints → pods → container port, marking the first broken link |
+| `kp fit [regex] [-A] [--problems]` | Live usage vs requests and limits (metrics-server): OOM risk, CPU throttling, over/under-requested, missing requests |
+| `kp timeline deploy/api [--since 30m]` | Rollouts, pod creation, restarts with exit codes and events of a workload, its ReplicaSets and pods, in time order |
+| `kp node-sh NODE-REGEX` | Root shell on a node via `kubectl debug` (host at `/`), debug pod deleted afterwards |
+| `kp edit-secret NAME` | Secret values decoded in your editor, re-encoded on save, temp file wiped |
+
+## Cost
+
+- `kp cost`: monthly estimate per namespace on any cluster. Node prices are shared by each pod's dominant request (CPU or memory share of the node); unrequested capacity shows as idle; PVCs add storage. On LKE prices come from the Linode API; elsewhere set `cost.nodePrices` (by `node.kubernetes.io/instance-type`), `cost.defaultNodePrice` and `cost.storagePerGB`.
+- `kp linode cost [re]`: list-price cost per LKE cluster (nodes, HA control plane, attached volumes) plus unattached volumes and NodeBalancers, using region prices.
+- `kp linode leftovers [--k8s-contexts re]`: unattached volumes and NodeBalancers that no LoadBalancer Service in the given contexts points at, with monthly cost.
+- `kp linode lke upgrade ID [--version] --yes`, `kp linode lke recycle ID [--pool] --yes`, `kp linode lke autoscale ID POOL --min --max --yes`, `kp linode firewalls`.
+
+## Install, update, settings
+
+| Platform | Command |
+| --- | --- |
+| Linux, macOS | `curl -fsSL https://raw.githubusercontent.com/lyelgate/kubepilot/main/install.sh \| sh` (checksum-verified) |
+| Windows | `irm https://raw.githubusercontent.com/lyelgate/kubepilot/main/install.ps1 \| iex` |
+| Homebrew / Scoop | `brew install lyelgate/tap/kp` / `scoop bucket add lyelgate https://github.com/lyelgate/scoop-bucket; scoop install kp` |
+| Linux packages | `.deb`, `.rpm`, `.apk` on each release |
+| Container | `ghcr.io/lyelgate/kubepilot` (in-cluster `kp silent serve`) |
+
+`kp update [--check]` replaces the binary with the latest release after verifying its sha256 (Homebrew installs: `brew upgrade kp`). `kp settings export > kp.yaml` and `kp settings import kp.yaml` carry aliases, safety rules, profiles, Teleport, silent tuning and cost prices to another machine; kp stores no tokens.
+
+Releases are built by `.goreleaser.yaml` on a `v*` tag (`.github/workflows/release.yml`): six binaries, archives, checksums, SBOM, cosign keyless signatures, Homebrew, Scoop, Linux packages and the image. CI (`.github/workflows/ci.yml`) runs unit tests on Linux, macOS and Windows, cross-builds every target, and runs `hack/e2e.sh` on kind. Renovate groups the `k8s.io/*` modules so kubectl updates land as one PR.
+
 ## Shell integration
 
 ```sh
@@ -477,7 +550,7 @@ internal/config/      ~/.kp config and state
 
 ## Limitations and roadmap
 
-- Silent checks from the design that are not built yet: API server certificate, kubelet CSR rotation, StatefulSet/DaemonSet rollouts, filesystem-smaller-than-PVC, volume nearly full, Released PVs, forgotten cordons, quota exhaustion, failed-pod build-up, telemetry silence, and an in-cluster mode with Prometheus metrics.
+- Not built: telemetry-silence checks (SF-TELEMETRY-001), and persisting `kp silent serve` first-seen times across restarts.
 - `kp plugin install` has been tested with unit tests and a live index download, but no real plugin was installed during development.
 - Linode commands were tested against a local mock of the API, not a real account.
 - The binary is large (about 65 MB stripped, 98 MB unstripped) because it contains kubectl.

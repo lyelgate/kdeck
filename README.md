@@ -20,6 +20,7 @@ kdeck linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubec
 - [Everyday helpers](#everyday-helpers)
 - [Silent-failure detection](#silent-failure-detection-kdeck-silent)
 - [Plugins (krew-compatible)](#plugins-krew-compatible)
+- [Supported Kubernetes versions](#supported-kubernetes-versions)
 - [Linode LKE](#linode-lke)
 - [Regex everywhere](#regex-everywhere)
 - [One pod by regex: dklog abc](#one-pod-by-regex-dklog-abc)
@@ -408,7 +409,7 @@ kdeck wraps the official tsh binary (install from goteleport.com/download, `brew
 ## Setup and diagnostics
 
 - `kdeck setup`: one question (Teleport proxy, Enter to skip), then the tools found and the exact line for your shell; `--write-rc` appends it for bash, zsh or fish.
-- `kdeck doctor [--all-contexts]`: kubeconfig, auth type and credential plugin per context, cluster reachability, kubectl/cluster version skew (warns outside ±1 minor), tools, Teleport session.
+- `kdeck doctor [--all-contexts]`: kubeconfig, auth type and credential plugin per context, cluster reachability, whether the cluster version is supported (1.31 to 1.38; warns outside), tools, Teleport session.
 
 ## Platforms
 
@@ -419,6 +420,22 @@ kdeck wraps the official tsh binary (install from goteleport.com/download, `brew
 | Windows | amd64, arm64 | PowerShell, cmd.exe |
 
 `make dist` builds all six binaries. On Windows, `kdeck shortcuts install` writes `.cmd` shims (no admin rights needed) and `kdeck shell-init powershell` / `kdeck shell-init cmd` generate PowerShell functions or doskey macros.
+
+## Supported Kubernetes versions
+
+kdeck supports clusters from **Kubernetes 1.31 to 1.38** (1.31 up to one minor above the embedded kubectl, currently v0.37.2). CI runs the end-to-end suite (`hack/e2e.sh`) on kind for every minor from 1.31 to 1.37:
+
+| Kubernetes | kind node image tested |
+| --- | --- |
+| 1.31 | v1.31.14 |
+| 1.32 | v1.32.11 |
+| 1.33 | v1.33.12 |
+| 1.34 | v1.34.11 |
+| 1.35 | v1.35.8 |
+| 1.36 | v1.36.4 |
+| 1.37 | v1.37.0 |
+
+This is wider than kubectl's own policy (one minor either side). kdeck only calls long-stable APIs (SelfSubjectReview v1 from 1.28, admissionregistration v1, batch/v1 CronJob, policy/v1 PDB, coordination v1 Lease), so older clusters behave the same; `kdeck doctor` warns when a cluster is outside the supported range. 1.38 is supported by kubectl's skew policy but has no kind image yet. When the embedded kubectl moves to a new minor, the top of the range moves with it; raising the oldest supported version means changing `setup.OldestSupportedMinor`, the CI matrix and this table together.
 
 ## Production safety
 

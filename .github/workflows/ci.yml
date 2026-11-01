@@ -44,11 +44,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The embedded kubectl is supported within +/-1 minor of the cluster.
-        # Use exact kindest/node tags from the kind release notes
-        # (https://github.com/kubernetes-sigs/kind/releases); keep this list
-        # at the embedded minor, one below and one above when available.
-        node: ["v1.37.0"]
+        # kdeck supports Kubernetes 1.31 up to the embedded kubectl minor (+1).
+        # Keep one exact kindest/node tag per supported minor
+        # (https://hub.docker.com/r/kindest/node/tags); raise the oldest only
+        # together with setup.OldestSupportedMinor and the README.
+        node: ["v1.31.14", "v1.32.11", "v1.33.12", "v1.34.11", "v1.35.8", "v1.36.4", "v1.37.0"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

@@ -179,14 +179,30 @@ func minor(v string) int {
 	return n
 }
 
-// Skew describes the client/server minor difference; ok is false outside ±1.
+// OldestSupportedMinor is the oldest Kubernetes minor kdeck supports. Every
+// minor from here to the embedded kubectl's runs hack/e2e.sh in CI.
+const OldestSupportedMinor = 31
+
+// Skew describes the client/server minor difference; ok is false when the
+// server is older than OldestSupportedMinor or more than one minor newer than
+// the embedded kubectl (newer servers may serve APIs kubectl does not know).
 func Skew(client, server string) (int, bool) {
 	c, s := minor(client), minor(server)
 	if c < 0 || s < 0 {
 		return 0, true
 	}
 	d := s - c
-	return d, d >= -1 && d <= 1
+	return d, s >= OldestSupportedMinor && d <= 1
+}
+
+// SupportedRange describes the supported servers for an embedded kubectl,
+// such as "1.31 to 1.38".
+func SupportedRange(client string) string {
+	c := minor(client)
+	if c < 0 {
+		return fmt.Sprintf("1.%d and newer", OldestSupportedMinor)
+	}
+	return fmt.Sprintf("1.%d to 1.%d", OldestSupportedMinor, c+1)
 }
 
 // NewDoctorCommand returns "kdeck doctor".
@@ -256,9 +272,9 @@ func NewDoctorCommand(flags *genericclioptions.ConfigFlags, out io.Writer, versi
 							d, ok := Skew(kubectlVersion, v.GitVersion)
 							fmt.Fprintf(out, "\ncluster %s reachable, server %s", raw.CurrentContext, v.GitVersion)
 							if ok {
-								fmt.Fprintln(out, " (within the supported ±1 minor of the embedded kubectl)")
+								fmt.Fprintf(out, " (supported: kdeck supports %s)\n", SupportedRange(kubectlVersion))
 							} else {
-								fmt.Fprintf(out, "\n  WARNING: server is %+d minor versions from the embedded kubectl %s; outside the supported ±1 skew. Most commands work, edge cases may not.\n", d, kubectlVersion)
+								fmt.Fprintf(out, "\n  WARNING: server is %+d minor versions from the embedded kubectl %s; kdeck supports %s. Most commands work, edge cases may not.\n", d, kubectlVersion, SupportedRange(kubectlVersion))
 								problems++
 							}
 						} else {

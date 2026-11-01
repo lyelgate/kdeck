@@ -125,7 +125,13 @@ $KP -n $NS delete pvc stuck --wait=false >/dev/null
 echo "waiting for the rollout deadline and a failed backup run"
 $KP -n $NS wait deploy/bad-image --for=jsonpath='{.status.conditions[?(@.type=="Progressing")].reason}'=ProgressDeadlineExceeded --timeout=180s >/dev/null
 for i in $(seq 1 30); do $KP -n $NS get jobs -o name 2>/dev/null | grep -q . && break; $KP -n $NS wait --for=jsonpath='{.status.lastScheduleTime}' cronjob/nightly-backup --timeout=10s >/dev/null 2>&1 || true; done
-$KP -n $NS wait --for=condition=Failed job --all --timeout=180s >/dev/null
+# Poll for any failed run: "wait --all" races with the CronJob deleting old
+# Jobs (failedJobsHistoryLimit) and then hangs on a Job that no longer exists.
+for i in $(seq 1 36); do
+  $KP -n $NS get jobs -o jsonpath='{.items[*].status.conditions[?(@.type=="Failed")].status}' 2>/dev/null | grep -q True && break
+  [ "$i" = 36 ] && { echo "no failed backup run after 180s"; exit 1; }
+  sleep 5
+done
 
 echo "--- kdeck silent"
 $KP silent --fail-on none

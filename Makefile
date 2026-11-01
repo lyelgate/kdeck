@@ -3,7 +3,7 @@ LDFLAGS := -s -w -X github.com/lyelgate/kdeck/internal/app.Version=$(VERSION)
 PREFIX  ?= $(shell go env GOPATH)/bin
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
-.PHONY: build test vet install dist clean
+.PHONY: build test vet install dist clean docs
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/kdeck ./cmd/kdeck
@@ -29,3 +29,8 @@ dist:
 
 clean:
 	rm -rf bin dist
+
+# docs/SHORTCUTS.md is generated from the shortcut grammar and command tree;
+# a test fails when it is out of date.
+docs: build
+	KDECK_HOME=$$(mktemp -d) ./bin/kdeck alias reference --markdown > docs/SHORTCUTS.md

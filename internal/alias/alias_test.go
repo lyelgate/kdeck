@@ -94,3 +94,20 @@ func TestCuratedAreValid(t *testing.T) {
 		t.Errorf("expected hundreds of generated aliases, got %d", n)
 	}
 }
+
+func TestFullForm(t *testing.T) {
+	for word, want := range map[string]string{
+		"kgpo":    "kubectl get pods",
+		"kgpol":   "kubectl get pods -l <value>",
+		"ka":      "kubectl apply -f <value>",
+		"ksysgpo": "kubectl get pods --namespace=kube-system",
+	} {
+		exp, ok := ParseCombo(word)
+		if !ok || FullForm(exp) != want {
+			t.Errorf("%s: got %q, want %q", word, FullForm(exp), want)
+		}
+	}
+	if got := FullForm(Verbs["tl"]); got != "kdeck tsh login" {
+		t.Errorf("tl: got %q", got)
+	}
+}

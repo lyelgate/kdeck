@@ -404,7 +404,82 @@ func sortedKeys[V any](m map[string]V) []string {
 // Describe returns "word -> expansion" for display.
 func Describe(word string) string {
 	if exp, ok := ParseCombo(word); ok {
-		return fmt.Sprintf("%-14s kubectl %s", word, strings.Join(exp, " "))
+		return fmt.Sprintf("%-14s %s", word, FullForm(exp))
 	}
 	return word
+}
+
+// kdeckVerbs are expansions that start with a kdeck command, not a kubectl one.
+var kdeckVerbs = set("tsh")
+
+// FullForm renders an expansion as the command a user would type without the
+// shortcut: "kubectl get pods -l <value>", or "kdeck tsh login" for kdeck's
+// own commands. A trailing value flag gets a <value> placeholder.
+func FullForm(exp []string) string {
+	if len(exp) == 0 {
+		return ""
+	}
+	prog := "kubectl"
+	if kdeckVerbs[exp[0]] {
+		prog = "kdeck"
+	}
+	s := prog + " " + strings.Join(exp, " ")
+	switch exp[len(exp)-1] {
+	case "-l", "--namespace", "-f":
+		s += " <value>"
+	}
+	return s
+}
+
+// Part is one element of the combination grammar and what it adds.
+type Part struct {
+	Code, Expands, Notes string
+}
+
+// GrammarCommands lists the <cmd> codes in a fixed order, with the
+// modifiers each accepts.
+func GrammarCommands() []Part {
+	order := []string{"g", "d", "rm", "a", "ex", "lo", "lop", "p", "pf"}
+	modOrder := []string{"oyaml", "ojson", "owide", "a", "all", "w", "sl", "l", "n", "f"}
+	parts := make([]Part, 0, len(order))
+	for _, k := range order {
+		def := cmds[k]
+		var mods []string
+		for _, m := range modOrder {
+			if def.allowedMods[m] {
+				mods = append(mods, m)
+			}
+		}
+		notes := "no resource"
+		if def.takesRes {
+			notes = "takes a resource"
+		}
+		if len(mods) > 0 {
+			notes += "; modifiers: " + strings.Join(mods, " ")
+		}
+		parts = append(parts, Part{k, strings.Join(def.expand, " "), notes})
+	}
+	return parts
+}
+
+// GrammarResources lists the <resource> codes alphabetically.
+func GrammarResources() []Part {
+	var parts []Part
+	for _, k := range sortedKeys(Resources) {
+		parts = append(parts, Part{Code: k, Expands: Resources[k]})
+	}
+	return parts
+}
+
+// GrammarModifiers lists the <modifier> codes in a fixed order.
+func GrammarModifiers() []Part {
+	notes := map[string]string{
+		"a": "same as all", "all": "cannot be combined with sys or n",
+		"w": "not with oyaml or ojson", "l": "takes the next argument", "n": "takes the next argument", "f": "takes the next argument",
+	}
+	var parts []Part
+	for _, k := range []string{"oyaml", "ojson", "owide", "a", "all", "w", "sl", "l", "n", "f"} {
+		parts = append(parts, Part{k, strings.Join(modifiers[k], " "), notes[k]})
+	}
+	return parts
 }

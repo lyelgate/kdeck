@@ -20,6 +20,27 @@ import (
 	"github.com/lyelgate/kdeck/internal/quick"
 )
 
+// ShellHelpers are the helper aliases "kdeck shell-init" defines besides the
+// combination words: name and what it runs.
+var ShellHelpers = [][2]string{
+	{"kctx", "kdeck ctx"}, {"kns", "kdeck ns"}, {"kwho", "kdeck who"}, {"kbad", "kdeck bad"},
+	{"ksf", "kdeck silent"}, {"ksh", "kdeck sh"}, {"ktail", "kdeck tail"}, {"kneat", "kdeck neat"},
+}
+
+// fullForm renders an expansion as the command it stands for: kdeck's own
+// commands (found in root's kdeck groups) as "kdeck ...", everything else as
+// kubectl.
+func fullForm(root *cobra.Command, exp []string) string {
+	if len(exp) > 0 && root != nil {
+		for _, c := range root.Commands() {
+			if (c.GroupID == "kdeck" || c.GroupID == "shortcuts") && (c.Name() == exp[0] || c.HasAlias(exp[0])) {
+				return "kdeck " + strings.Join(exp, " ")
+			}
+		}
+	}
+	return alias.FullForm(exp)
+}
+
 // InitCommand returns "kdeck shell-init".
 func InitCommand(out io.Writer) *cobra.Command {
 	var all bool
@@ -85,10 +106,7 @@ WSL uses the Linux binary with bash or zsh.`,
 			for _, n := range quick.DKNames {
 				emit(n, "kdeck "+n)
 			}
-			for _, h := range [][2]string{
-				{"kctx", "kdeck ctx"}, {"kns", "kdeck ns"}, {"kwho", "kdeck who"}, {"kbad", "kdeck bad"},
-				{"ksf", "kdeck silent"}, {"ksh", "kdeck sh"}, {"ktail", "kdeck tail"}, {"kneat", "kdeck neat"},
-			} {
+			for _, h := range ShellHelpers {
 				emit(h[0], h[1])
 			}
 			user := map[string]bool{}
@@ -154,6 +172,7 @@ func AliasCommand(out io.Writer) *cobra.Command {
 		Short:   "List, explain, add and remove shortcuts",
 		Example: `  kdeck alias list                 # verb shortcuts, combos and your aliases
   kdeck alias explain kgpooyaml    # what a word expands to
+  kdeck alias reference            # every shortcut with its full command
   kdeck alias set kgr 'get pods --field-selector=status.phase=Running'
   kdeck kgr -A                     # use it
   kdeck alias rm kgr`,
@@ -172,8 +191,9 @@ func AliasCommand(out io.Writer) *cobra.Command {
 				return err
 			}
 			row := func(tw io.Writer, name, exp, kind string) {
-				if re.Any(name, exp) {
-					fmt.Fprintf(tw, "%s\tkubectl %s\t%s\n", name, exp, kind)
+				full := fullForm(cmd.Root(), alias.SplitWords(exp))
+				if re.Any(name, full) {
+					fmt.Fprintf(tw, "%s\t%s\t%s\n", name, full, kind)
 				}
 			}
 			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
@@ -213,12 +233,14 @@ func AliasCommand(out io.Writer) *cobra.Command {
 				fmt.Fprintln(out, "cmd: g=get d=describe rm=delete a=apply -f ex=exec -it lo=logs -f lop=logs -f -p p=proxy pf=port-forward")
 				fmt.Fprintln(out, "resource: po dep sts ds rs svc ing cm sec no ns job cj pvc pv hpa sa ev ep pdb np crd sc lease")
 				fmt.Fprintln(out, "modifiers: oyaml ojson owide a|all w sl, and one of l (-l) n (--namespace) f (-f) taking the next argument")
+				fmt.Fprintln(out, "Every shortcut with its full command: kdeck alias reference")
 			}
 			return nil
 		},
 	}
 	list.Flags().BoolVar(&all, "all", false, "every valid combination")
 	cmd.AddCommand(list)
+	cmd.AddCommand(ReferenceCommand(out))
 	cmd.AddCommand(&cobra.Command{
 		Use: "explain WORD", Aliases: []string{"x", "what"}, Short: "Show what a word expands to", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -231,7 +253,7 @@ func AliasCommand(out io.Writer) *cobra.Command {
 			if used == "" {
 				return fmt.Errorf("%q is not a shortcut", args[0])
 			}
-			fmt.Fprintf(out, "%s -> kubectl %s\n", args[0], strings.Join(exp, " "))
+			fmt.Fprintf(out, "%s -> %s\n", args[0], fullForm(cmd.Root(), exp))
 			return nil
 		},
 	})
@@ -249,7 +271,7 @@ func AliasCommand(out io.Writer) *cobra.Command {
 			if err := cfg.Save(); err != nil {
 				return err
 			}
-			fmt.Fprintf(out, "%s -> kubectl %s\n", args[0], cfg.Aliases[args[0]])
+			fmt.Fprintf(out, "%s -> %s\n", args[0], fullForm(cmd.Root(), alias.SplitWords(cfg.Aliases[args[0]])))
 			return nil
 		},
 	})

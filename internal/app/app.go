@@ -191,7 +191,8 @@ func build(arguments []string) (*cobra.Command, genericiooptions.IOStreams, *gen
 	root.Long = `kdeck is a single binary for running Kubernetes end to end.
 
   * Every kubectl command, built in and identical: kdeck get pods, kdeck apply -f x.yaml
-  * Shortcuts: kdeck kgpo, kdeck kdpol app=web, kdeck l pod, kdeck rr deploy/api (kdeck alias list)
+  * Shortcuts: kdeck kgpo, kdeck kdpol app=web, kdeck l pod, kdeck rr deploy/api
+    (kdeck alias reference lists every one with its full command; kdeck help kgpo explains one)
   * Context and namespace switching: kdeck ctx, kdeck ns, with "-" for previous
   * Everyday helpers: kdeck pods, kdeck bad, kdeck sh, kdeck tail, kdeck neat, kdeck nodes, kdeck clean
   * Silent-failure detection: kdeck silent (backups, certs, leases, webhooks, PDBs, ...)
@@ -334,6 +335,75 @@ func installHelp(root *cobra.Command, kdeck []*cobra.Command) {
 				fmt.Fprintf(w, "  %-14s %s\n", k.Name(), k.Short)
 			}
 		}
-		fmt.Fprintln(w, "\nShort aliases: kdeck alias list   ·   Shell setup: kdeck shell-init zsh")
+		fmt.Fprintln(w, "\nShortcuts: kdeck alias reference (every shortcut and its full command), kdeck help WORD")
+		fmt.Fprintln(w, "Shell setup: kdeck shell-init zsh")
 	})
+	installHelpCommand(root)
+}
+
+// installHelpCommand replaces cobra's help command so that "kdeck help kgpo"
+// explains a shortcut (what it expands to) and then shows the help of the
+// command it runs. Real commands keep their normal help.
+func installHelpCommand(root *cobra.Command) {
+	root.SetHelpCommand(&cobra.Command{
+		Use:   "help [command | shortcut]",
+		Short: "Help about any command, or what a shortcut expands to",
+		Long:  "Help about any command. For a shortcut (kgpo, rr, dklog, your own aliases) it prints the full command first, then that command's help.",
+		ValidArgsFunction: func(c *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			var names []string
+			for _, sub := range root.Commands() {
+				if sub.IsAvailableCommand() && strings.HasPrefix(sub.Name(), toComplete) {
+					names = append(names, sub.Name())
+				}
+			}
+			return names, cobra.ShellCompDirectiveNoFileComp
+		},
+		Run: func(c *cobra.Command, args []string) {
+			w := c.OutOrStdout()
+			target, rest, err := root.Find(args)
+			if len(args) > 0 && (err != nil || target == root) {
+				cfg, _ := config.Load()
+				user := map[string]string{}
+				if cfg != nil {
+					user = cfg.Aliases
+				}
+				exp, used := alias.Expand(args, user, nil)
+				if used == "" {
+					fmt.Fprintf(w, "Unknown help topic %q. Run \"kdeck alias reference\" for every shortcut.\n", strings.Join(args, " "))
+					return
+				}
+				prog := "kubectl"
+				if t, _, ferr := root.Find(exp); ferr == nil && t != root && isKdeckCommand(t) {
+					prog = "kdeck"
+				}
+				fmt.Fprintf(w, "%s = %s %s\n\n", used, prog, strings.Join(exp, " "))
+				target, rest, err = root.Find(exp)
+			}
+			_ = rest
+			if err == nil && target != nil && target != root && len(args) > 0 && args[len(args)-1] != target.Name() && target.HasAlias(args[len(args)-1]) {
+				prog := "kubectl"
+				if isKdeckCommand(target) {
+					prog = "kdeck"
+				}
+				fmt.Fprintf(w, "%s = %s %s\n\n", strings.Join(args, " "), prog, strings.TrimPrefix(target.CommandPath(), root.Name()+" "))
+			}
+			if target == nil || err != nil {
+				_ = root.Usage()
+				return
+			}
+			target.InitDefaultHelpFlag()
+			target.InitDefaultVersionFlag()
+			_ = target.Help()
+		},
+	})
+}
+
+// isKdeckCommand reports whether c belongs to kdeck rather than kubectl.
+func isKdeckCommand(c *cobra.Command) bool {
+	for ; c != nil && c.HasParent(); c = c.Parent() {
+		if c.GroupID == "kdeck" || c.GroupID == "shortcuts" {
+			return true
+		}
+	}
+	return false
 }

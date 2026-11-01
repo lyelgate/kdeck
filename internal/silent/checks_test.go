@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -255,4 +256,54 @@ func selfSigned(t *testing.T, cn string, notAfter time.Time) []byte {
 		t.Fatal(err)
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+}
+
+func TestNewChecks(t *testing.T) {
+	staleSince := metav1.NewTime(now.Add(-3 * time.Hour))
+	notReady := &corev1.Node{ObjectMeta: om("", "node-3", 30*24*time.Hour), Spec: corev1.NodeSpec{Unschedulable: true},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionUnknown, Reason: "NodeStatusUnknown", LastTransitionTime: staleSince}}}}
+	released := &corev1.PersistentVolume{ObjectMeta: om("", "pv-old", 90*24*time.Hour), Status: corev1.PersistentVolumeStatus{Phase: corev1.VolumeReleased}}
+	quota := &corev1.ResourceQuota{ObjectMeta: om("team", "compute", 10*24*time.Hour), Status: corev1.ResourceQuotaStatus{
+		Hard: corev1.ResourceList{corev1.ResourcePods: resource.MustParse("10")}, Used: corev1.ResourceList{corev1.ResourcePods: resource.MustParse("10")}}}
+	resize := &corev1.PersistentVolumeClaim{ObjectMeta: om("db", "data", 10*24*time.Hour), Status: corev1.PersistentVolumeClaimStatus{
+		Conditions: []corev1.PersistentVolumeClaimCondition{{Type: corev1.PersistentVolumeClaimFileSystemResizePending, Status: corev1.ConditionTrue, LastTransitionTime: staleSince}}}}
+	r := run(t, []runtime.Object{notReady, released, quota, resize}, Options{Checks: []string{"node", "storage", "SF-QUOTA-001"}})
+	got := map[string]bool{}
+	for _, f := range r.Findings {
+		got[f.Check] = true
+	}
+	for _, id := range []string{"SF-NODE-001", "SF-NODE-002", "SF-VOL-004", "SF-QUOTA-001", "SF-VOL-002"} {
+		if !got[id] {
+			t.Errorf("expected a %s finding; got %v", id, got)
+		}
+	}
+}
+
+func TestDeprecatedCalls(t *testing.T) {
+	m := `# HELP apiserver_requested_deprecated_apis x
+apiserver_requested_deprecated_apis{group="policy",removed_release="1.25",resource="podsecuritypolicies",subresource="",version="v1beta1"} 1
+apiserver_requested_deprecated_apis{group="",removed_release="",resource="componentstatuses",subresource="",version="v1"} 1
+apiserver_requested_deprecated_apis{group="x",removed_release="1.40",resource="y",subresource="",version="v1"} 0
+`
+	calls := DeprecatedCalls(m)
+	if len(calls) != 2 || calls[0]["resource"] != "podsecuritypolicies" || calls[0]["removed_release"] != "1.25" {
+		t.Fatalf("got %+v", calls)
+	}
+}
+
+func TestWriteMetrics(t *testing.T) {
+	var b strings.Builder
+	f := Finding{Check: "SF-PDB-001", Severity: Medium, Kind: "PodDisruptionBudget", Namespace: "pay", Name: `we"ird`, Since: tp(now)}
+	WriteMetrics(&b, Result{Findings: []Finding{f}, Skipped: []Skipped{{"SF-BACKUP-001", "API not installed"}}, Duration: "12ms"}, now, false)
+	out := b.String()
+	for _, want := range []string{
+		`silent_finding{check="SF-PDB-001",severity="medium",category="workload",namespace="pay",kind="PodDisruptionBudget",name="we\"ird"} 1`,
+		`silent_findings_total{severity="medium"} 1`,
+		`silent_check_skipped{check="SF-BACKUP-001",reason="API not installed"} 1`,
+		"silent_run_duration_seconds 0.012",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
 }

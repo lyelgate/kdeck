@@ -11,6 +11,7 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 
 	"github.com/lyelgate/kubepilot/internal/config"
 	"github.com/lyelgate/kubepilot/internal/match"
@@ -97,7 +98,12 @@ the evidence, and what to do next. Read-only; safe on production clusters.`,
 				cluster = *flags.Context
 			}
 			now := time.Now()
-			res := Run(cmd.Context(), NewSnapshot(cs, dyn, ns), Options{
+			snap := NewSnapshot(cs, dyn, ns)
+			snap.Host = rc.Host
+			if mc, err := metadata.NewForConfig(rc); err == nil {
+				snap.Meta = mc
+			}
+			res := Run(cmd.Context(), snap, Options{
 				Checks: splitList(checks), Skip: splitList(skip), Sensitive: sensitive,
 				Since: since, IncludeUnknown: includeUnknown, MinSeverity: minSeverity,
 				Now: now, Config: cfg.Silent, Match: m,
@@ -120,8 +126,9 @@ the evidence, and what to do next. Read-only; safe on production clusters.`,
 			return nil
 		},
 	}
+	cmd.AddCommand(serveCmd(flags, version), manifestCmd(version))
 	f := cmd.Flags()
-	f.StringSliceVar(&checks, "check", nil, "check IDs or categories to run (backup, certificate, rbac, control, webhook, network, workload, storage)")
+	f.StringSliceVar(&checks, "check", nil, "check IDs or categories to run (backup, certificate, control, gitops, network, node, rbac, storage, webhook, workload)")
 	f.StringSliceVar(&skip, "skip", nil, "check IDs or categories to skip")
 	f.BoolVar(&sensitive, "sensitive", false, "enable checks that read Secrets (certificate expiry)")
 	f.StringVarP(&output, "output", "o", "table", "table, wide, json or markdown")

@@ -135,10 +135,18 @@ func Path(elem ...string) string {
 	return filepath.Join(append([]string{Home()}, elem...)...)
 }
 
+// File is the config file: $KP_CONFIG, or config.yaml in kp's home.
+func File() string {
+	if f := os.Getenv("KP_CONFIG"); f != "" {
+		return f
+	}
+	return Path("config.yaml")
+}
+
 // Load reads config.yaml. A missing file is an empty config, not an error.
 func Load() (*Config, error) {
 	c := &Config{}
-	data, err := os.ReadFile(Path("config.yaml"))
+	data, err := os.ReadFile(File())
 	if errors.Is(err, os.ErrNotExist) {
 		return c, nil
 	}
@@ -157,7 +165,7 @@ func (c *Config) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(Path("config.yaml"), data, 0o600)
+	return os.WriteFile(File(), data, 0o600)
 }
 
 // LoadState reads state.json; a missing or corrupt file yields empty state.

@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
+	certificatesv1 "k8s.io/api/certificates/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 )
 
 // GVRs for objects read through the dynamic client, so kp does not need
@@ -31,6 +33,11 @@ var (
 	gvrVeleroSched  = schema.GroupVersionResource{Group: "velero.io", Version: "v1", Resource: "schedules"}
 	gvrVeleroBackup = schema.GroupVersionResource{Group: "velero.io", Version: "v1", Resource: "backups"}
 	gvrVeleroBSL    = schema.GroupVersionResource{Group: "velero.io", Version: "v1", Resource: "backupstoragelocations"}
+	gvrArgoApp      = schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "applications"}
+	gvrFluxKust     = schema.GroupVersionResource{Group: "kustomize.toolkit.fluxcd.io", Version: "v1", Resource: "kustomizations"}
+	gvrFluxHelm     = schema.GroupVersionResource{Group: "helm.toolkit.fluxcd.io", Version: "v2", Resource: "helmreleases"}
+	gvrFluxGit      = schema.GroupVersionResource{Group: "source.toolkit.fluxcd.io", Version: "v1", Resource: "gitrepositories"}
+	gvrSecrets      = schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
 )
 
 // Snapshot lazily lists cluster objects, caching each list for the run.
@@ -38,6 +45,8 @@ var (
 type Snapshot struct {
 	CS        kubernetes.Interface
 	Dyn       dynamic.Interface
+	Meta      metadata.Interface // metadata-only reads (Helm release Secrets)
+	Host      string             // API server URL, for its serving certificate
 	Namespace string
 
 	mu    sync.Mutex
@@ -349,4 +358,72 @@ func (s *Snapshot) Dynamic(ctx context.Context, gvr schema.GroupVersionResource,
 		}
 		return l.Items, nil
 	})
+}
+
+func (s *Snapshot) Nodes(ctx context.Context) ([]corev1.Node, error) {
+	return get(s, "nodes", func() ([]corev1.Node, error) {
+		l, err := s.CS.CoreV1().Nodes().List(ctx, all)
+		if err != nil {
+			return nil, err
+		}
+		return l.Items, nil
+	})
+}
+
+func (s *Snapshot) DaemonSets(ctx context.Context) ([]appsv1.DaemonSet, error) {
+	return get(s, "daemonsets", func() ([]appsv1.DaemonSet, error) {
+		l, err := s.CS.AppsV1().DaemonSets(s.Namespace).List(ctx, all)
+		if err != nil {
+			return nil, err
+		}
+		return l.Items, nil
+	})
+}
+
+func (s *Snapshot) ResourceQuotas(ctx context.Context) ([]corev1.ResourceQuota, error) {
+	return get(s, "resourcequotas", func() ([]corev1.ResourceQuota, error) {
+		l, err := s.CS.CoreV1().ResourceQuotas(s.Namespace).List(ctx, all)
+		if err != nil {
+			return nil, err
+		}
+		return l.Items, nil
+	})
+}
+
+func (s *Snapshot) CSRs(ctx context.Context) ([]certificatesv1.CertificateSigningRequest, error) {
+	return get(s, "csrs", func() ([]certificatesv1.CertificateSigningRequest, error) {
+		l, err := s.CS.CertificatesV1().CertificateSigningRequests().List(ctx, all)
+		if err != nil {
+			return nil, err
+		}
+		return l.Items, nil
+	})
+}
+
+// HelmReleaseSecrets lists Helm release Secrets as metadata only: release
+// name, revision and status live in labels, so Secret data is never read.
+func (s *Snapshot) HelmReleaseSecrets(ctx context.Context) ([]metav1.PartialObjectMetadata, error) {
+	return get(s, "helm-secrets", func() ([]metav1.PartialObjectMetadata, error) {
+		if s.Meta == nil {
+			return nil, errNotInstalled
+		}
+		l, err := s.Meta.Resource(gvrSecrets).Namespace(s.Namespace).List(ctx, metav1.ListOptions{LabelSelector: "owner=helm"})
+		if err != nil {
+			return nil, err
+		}
+		return l.Items, nil
+	})
+}
+
+// APIMetrics fetches the API server's /metrics text.
+func (s *Snapshot) APIMetrics(ctx context.Context) (string, error) {
+	return get(s, "apimetrics", func() (string, error) {
+		b, err := s.CS.Discovery().RESTClient().Get().AbsPath("/metrics").DoRaw(ctx)
+		return string(b), err
+	})
+}
+
+// NodeStats fetches the kubelet stats summary for a node via the API proxy.
+func (s *Snapshot) NodeStats(ctx context.Context, node string) ([]byte, error) {
+	return s.CS.CoreV1().RESTClient().Get().Resource("nodes").Name(node).SubResource("proxy").Suffix("stats/summary").DoRaw(ctx)
 }

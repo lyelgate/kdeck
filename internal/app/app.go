@@ -235,7 +235,9 @@ Run "kp shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
 		c.GroupID = "kp"
 		root.AddCommand(c)
 	}
-	root.AddCommand(quick.Commands(quick.Deps{Flags: flags, Out: out, ErrOut: streams.ErrOut, Run: run})...)
+	deps := quick.Deps{Flags: flags, Out: out, ErrOut: streams.ErrOut, Run: run}
+	root.AddCommand(quick.Commands(deps)...)
+	root.AddCommand(quick.TroubleCommands(deps)...)
 	installHelp(root, kpCmds)
 	return root, streams, flags
 }

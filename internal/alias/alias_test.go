@@ -101,11 +101,16 @@ func TestFullForm(t *testing.T) {
 		"kgpol":   "kubectl get pods -l <value>",
 		"ka":      "kubectl apply -f <value>",
 		"ksysgpo": "kubectl get pods --namespace=kube-system",
+		"klo":     "kubectl logs -f",
+		"kgpof":   "kubectl get pods --recursive -f <value>",
 	} {
 		exp, ok := ParseCombo(word)
 		if !ok || FullForm(exp) != want {
 			t.Errorf("%s: got %q, want %q", word, FullForm(exp), want)
 		}
+	}
+	if got := FullForm(Verbs["lf"]); got != "kubectl logs -f" {
+		t.Errorf("lf: got %q", got)
 	}
 	if got := FullForm(Verbs["tl"]); got != "kdeck tsh login" {
 		t.Errorf("tl: got %q", got)

@@ -424,8 +424,10 @@ func FullForm(exp []string) string {
 		prog = "kdeck"
 	}
 	s := prog + " " + strings.Join(exp, " ")
-	switch exp[len(exp)-1] {
-	case "-l", "--namespace", "-f":
+	switch last := exp[len(exp)-1]; {
+	case last == "-l", last == "--namespace":
+		s += " <value>"
+	case last == "-f" && exp[0] != "logs": // logs -f is --follow, not a file
 		s += " <value>"
 	}
 	return s

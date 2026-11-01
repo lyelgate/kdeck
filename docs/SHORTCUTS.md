@@ -203,7 +203,7 @@ One word for a common command. Use them after kdeck (`kdeck rr deploy/api`) or a
 | `evw` | `kubectl events --types=Warning` |
 | `l` | `kubectl logs` |
 | `lb` | `kubectl label` |
-| `lf` | `kubectl logs -f <value>` |
+| `lf` | `kubectl logs -f` |
 | `lp` | `kubectl logs -p` |
 | `rh` | `kubectl rollout history` |
 | `ro` | `kubectl rollout` |
@@ -794,7 +794,7 @@ Words follow `[k][sys]<cmd>[<resource>][<modifiers>]`, as in kubectl-aliases. Th
 
 | Shortcut | Full command | Also |
 | --- | --- | --- |
-| `klo` | `kubectl logs -f <value>` |  |
+| `klo` | `kubectl logs -f` |  |
 | `klon` | `kubectl logs -f --namespace <value>` |  |
 | `klop` | `kubectl logs -f -p` |  |
 | `klopn` | `kubectl logs -f -p --namespace <value>` |  |

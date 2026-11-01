@@ -139,7 +139,8 @@ func NewCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Comm
   kp linode cli linodes list                              # anything else, via linode-cli`,
 	}
 	cmd.PersistentFlags().StringVar(&o.token, "token", "", "Linode API token (default: LINODE_TOKEN, then linode-cli config)")
-	cmd.AddCommand(lkeCmd(o), regionsCmd(o), typesCmd(o), volumesCmd(o), nodeBalancersCmd(o), instancesCmd(o), cliCmd())
+	cmd.AddCommand(lkeCmd(o), regionsCmd(o), typesCmd(o), volumesCmd(o), nodeBalancersCmd(o), instancesCmd(o),
+		firewallsCmd(o), costCmd(o), leftoversCmd(o), cliCmd())
 	return cmd
 }
 
@@ -156,6 +157,7 @@ func table(out io.Writer, header string, rows [][]string) error {
 
 func lkeCmd(o *opts) *cobra.Command {
 	cmd := &cobra.Command{Use: "lke", Aliases: []string{"k8s", "clusters"}, Short: "LKE clusters"}
+	cmd.AddCommand(lifecycleCmds(o)...)
 
 	cmd.AddCommand(&cobra.Command{
 		Use: "ls", Aliases: []string{"list"}, Short: "List LKE clusters",

@@ -22,6 +22,7 @@ import (
 	"github.com/lyelgate/kubepilot/internal/alias"
 	"github.com/lyelgate/kubepilot/internal/cloud"
 	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kubepilot/internal/cost"
 	"github.com/lyelgate/kubepilot/internal/guard"
 	"github.com/lyelgate/kubepilot/internal/kctx"
 	"github.com/lyelgate/kubepilot/internal/linode"
@@ -231,6 +232,7 @@ Run "kp shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
 		aboutCommand(out),
 	}
 	kpCmds = append(kpCmds, cloud.NewCommands(flags, out)...)
+	kpCmds = append(kpCmds, cost.NewCommand(flags, out, linode.CostPricer))
 	for _, c := range kpCmds {
 		c.GroupID = "kp"
 		root.AddCommand(c)

@@ -60,6 +60,8 @@ type CostConfig struct {
 	// DefaultNodePrice is used for nodes with an unknown instance type.
 	DefaultNodePrice float64 `json:"defaultNodePrice,omitempty"`
 	Currency         string  `json:"currency,omitempty"` // default USD
+	// StoragePerGB prices PVC capacity per GB-month (Linode: from the API).
+	StoragePerGB float64 `json:"storagePerGB,omitempty"`
 }
 
 // UpdateConfig controls "kp update".

@@ -57,6 +57,8 @@ jobs:
       - run: go build -o bin/kdeck ./cmd/kdeck
       - uses: helm/kind-action@v1
         with:
+          # kind before v0.32 writes kubeadm v1beta3 config, which 1.37 rejects.
+          version: v0.33.0
           node_image: kindest/node:${{ matrix.node }}
           cluster_name: kdeck-e2e
       - name: planted silent failures, guard and shortcuts

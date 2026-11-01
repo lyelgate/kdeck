@@ -35,6 +35,8 @@ func TestShortcutsDocUpToDate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Git on Windows may check the file out with CRLF line endings.
+	want = bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n"))
 	if !bytes.Equal(got, want) {
 		t.Fatalf("docs/SHORTCUTS.md is out of date; run make docs (got %d bytes, file has %d)", len(got), len(want))
 	}

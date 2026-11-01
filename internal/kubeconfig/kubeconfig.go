@@ -14,20 +14,20 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
-// Path returns the kubeconfig file kp writes to (first entry of KUBECONFIG,
+// Path returns the kubeconfig file kdeck writes to (first entry of KUBECONFIG,
 // --kubeconfig, or ~/.kube/config).
 func Path(flags *genericclioptions.ConfigFlags) string {
 	return flags.ToRawKubeConfigLoader().ConfigAccess().GetDefaultFilename()
 }
 
-// Backup copies the kubeconfig to <file>.kp-backup-<timestamp>; returns ""
+// Backup copies the kubeconfig to <file>.kdeck-backup-<timestamp>; returns ""
 // when there was nothing to back up.
 func Backup(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", nil
 	}
-	backup := fmt.Sprintf("%s.kp-backup-%s", path, time.Now().Format("20060102-150405"))
+	backup := fmt.Sprintf("%s.kdeck-backup-%s", path, time.Now().Format("20060102-150405"))
 	if err := os.WriteFile(backup, data, 0o600); err != nil {
 		return "", fmt.Errorf("writing backup: %w", err)
 	}

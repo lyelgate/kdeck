@@ -13,8 +13,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 
-	"github.com/lyelgate/kubepilot/internal/config"
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 // ExitError carries a process exit code without printing an error.
@@ -22,7 +22,7 @@ type ExitError struct{ Code int }
 
 func (e ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
 
-// NewCommand returns "kp silent".
+// NewCommand returns "kdeck silent".
 func NewCommand(flags *genericclioptions.ConfigFlags, out io.Writer, version string) *cobra.Command {
 	var (
 		checks, skip                       []string
@@ -42,15 +42,15 @@ because metrics are down, PDBs that will block every drain.
 
 Every finding says what broke, since when (from the API, never guessed),
 the evidence, and what to do next. Read-only; safe on production clusters.`,
-		Example: `  kp silent                         # all namespaces, all non-sensitive checks
-  kp silent -n payments             # one namespace (cluster-scoped checks still run)
-  kp silent --check cert,backup     # by category or check ID
-  kp silent --sensitive             # also read Secrets for certificate expiry
-  kp silent --since 24h             # only failures that started in the last day
-  kp silent -o markdown > report.md # shareable report
-  kp silent -o json --fail-on high  # CI: exit 1 on high or critical
-  kp silent --list                  # show the check catalogue
-  kp silent -m 'payments|billing'   # regex over object, summary and check ID`,
+		Example: `  kdeck silent                         # all namespaces, all non-sensitive checks
+  kdeck silent -n payments             # one namespace (cluster-scoped checks still run)
+  kdeck silent --check cert,backup     # by category or check ID
+  kdeck silent --sensitive             # also read Secrets for certificate expiry
+  kdeck silent --since 24h             # only failures that started in the last day
+  kdeck silent -o markdown > report.md # shareable report
+  kdeck silent -o json --fail-on high  # CI: exit 1 on high or critical
+  kdeck silent --list                  # show the check catalogue
+  kdeck silent -m 'payments|billing'   # regex over object, summary and check ID`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if list {
 				return printCatalogue(out)

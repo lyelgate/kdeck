@@ -21,8 +21,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 
-	"github.com/lyelgate/kubepilot/internal/match"
-	"github.com/lyelgate/kubepilot/internal/stern"
+	"github.com/lyelgate/kdeck/internal/match"
+	"github.com/lyelgate/kdeck/internal/stern"
 )
 
 // regexHelp is appended to commands that take a pattern.
@@ -87,7 +87,7 @@ func pickOne(what string, names []string) (string, error) {
 	case 1:
 		return names[0], nil
 	}
-	if fzf, err := exec.LookPath("fzf"); err == nil && os.Getenv("KP_NO_FZF") == "" && isTTY(os.Stdin) && isTTY(os.Stdout) {
+	if fzf, err := exec.LookPath("fzf"); err == nil && os.Getenv("KDECK_NO_FZF") == "" && isTTY(os.Stdin) && isTTY(os.Stdout) {
 		c := exec.Command(fzf, "--height=40%", "--reverse", "--prompt="+what+"> ")
 		c.Stdin = strings.NewReader(strings.Join(names, "\n"))
 		c.Stderr = os.Stderr
@@ -117,18 +117,18 @@ func tailCmd(d Deps) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:     "tail POD-REGEX | TYPE/NAME",
-		Aliases: []string{"stern", "st", "logs-all", "lg", "kptail"},
+		Aliases: []string{"stern", "st", "logs-all", "lg", "dktail"},
 		Short:   "Stern-style logs: every pod and container matching a regex, colour per pod, new pods picked up live",
 		Long: `Follow logs from every pod whose name matches a regex, and every container
 whose name matches -c. In follow mode the API is watched, so pods created
 later (scale-ups, rollouts, restarts) join the stream automatically.
 ` + regexHelp,
-		Example: `  kp tail api                       # all pods with "api" in the name
-  kp tail '^web-' -c nginx          # only the nginx containers
-  kp tail . -A -i error -e healthz  # every pod, lines with "error", not "healthz"
-  kp tail deploy/api --since 10m    # pods of a workload
-  kp tail api -l tier=backend       # regex and label selector together
-  kp stern api                      # same command`,
+		Example: `  kdeck tail api                       # all pods with "api" in the name
+  kdeck tail '^web-' -c nginx          # only the nginx containers
+  kdeck tail . -A -i error -e healthz  # every pod, lines with "error", not "healthz"
+  kdeck tail deploy/api --since 10m    # pods of a workload
+  kdeck tail api -l tier=backend       # regex and label selector together
+  kdeck stern api                      # same command`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cs, ns, err := d.client()
@@ -231,18 +231,18 @@ func pfCmd(d Deps) *cobra.Command {
 	var podsOnly bool
 	cmd := &cobra.Command{
 		Use:     "pf SVC-OR-POD-REGEX | TYPE/NAME [[LOCAL:]REMOTE...]",
-		Aliases: []string{"fwd", "forward", "kppf"},
+		Aliases: []string{"fwd", "forward", "dkpf"},
 		Short:   "Port-forward by regex: finds the Service (or pod) and its ports for you",
 		Long: `Port-forward to the Service or pod whose name matches a regex. Services are
 preferred; --pod forwards to a pod instead. Without ports, every declared
 port is forwarded; ports below 1024 map to +8000 locally (80 -> 8080).
 When several match, fzf opens if installed, otherwise the matches are listed.
 ` + regexHelp,
-		Example: `  kp pf grafana                 # svc/grafana, all its ports
-  kp pf api 9000:8080           # svc matching "api", local 9000 -> 8080
-  kp pf '^web-0$' --pod         # a specific pod
-  kp pf deploy/api 8080         # TYPE/NAME passes straight to kubectl
-  kp pf grafana --address 0.0.0.0`,
+		Example: `  kdeck pf grafana                 # svc/grafana, all its ports
+  kdeck pf api 9000:8080           # svc matching "api", local 9000 -> 8080
+  kdeck pf '^web-0$' --pod         # a specific pod
+  kdeck pf deploy/api 8080         # TYPE/NAME passes straight to kubectl
+  kdeck pf grafana --address 0.0.0.0`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cs, ns, err := d.client()
@@ -311,7 +311,7 @@ When several match, fzf opens if installed, otherwise the matches are listed.
 			}
 			if len(ports) == 0 {
 				if len(declared) == 0 {
-					return fmt.Errorf("%s declares no ports; give them explicitly, e.g. kp pf %s 8080", target, query)
+					return fmt.Errorf("%s declares no ports; give them explicitly, e.g. kdeck pf %s 8080", target, query)
 				}
 				for _, p := range declared {
 					ports = append(ports, fmt.Sprintf("%d:%d", localPort(p), p))
@@ -350,13 +350,13 @@ func podCmd(d Deps) *cobra.Command {
 	var selector, output string
 	cmd := &cobra.Command{
 		Use:     "pod POD-REGEX",
-		Aliases: []string{"pd", "inspect", "kppod"},
+		Aliases: []string{"pd", "inspect", "dkpod"},
 		Short:   "Details of every pod matching a regex: node, IP, owner, containers, restarts, last crash, warnings",
 		Long:    "Show a compact detail card for each pod whose name matches a regex.\n" + regexHelp,
-		Example: `  kp pod api                  # every pod with "api" in the name
-  kp pod '^web-[0-9]+$' -A
-  kp pod api --describe       # full kubectl describe for each match
-  kp pod api -o yaml          # kubectl get -o yaml for each match`,
+		Example: `  kdeck pod api                  # every pod with "api" in the name
+  kdeck pod '^web-[0-9]+$' -A
+  kdeck pod api --describe       # full kubectl describe for each match
+  kdeck pod api -o yaml          # kubectl get -o yaml for each match`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pods, err := matchingPods(d, cmd, args[0], all, selector)
@@ -514,17 +514,17 @@ func findCmd(d Deps) *cobra.Command {
 	var kinds string
 	cmd := &cobra.Command{
 		Use:     "find REGEX [KIND[,KIND...]]",
-		Aliases: []string{"search", "grep", "kpfind"},
+		Aliases: []string{"search", "grep", "dkfind"},
 		Short:   "Regex search over resource names (and labels) across many kinds at once",
 		Long: `Search resource names by regex across kinds: pods, workloads, Services,
 Ingresses, ConfigMaps, Secrets, jobs, PVCs, HPAs, nodes, namespaces and more.
 Kinds accept kubectl names and short names (po, deploy, svc, cm, ...), and any
 CRD. Only metadata is read, so Secret contents are never fetched.
 ` + regexHelp,
-		Example: `  kp find payment -A                  # anything named like "payment", all namespaces
-  kp find '^redis' svc,sts,pvc -A
-  kp find 'team=core' --labels -A     # match labels (key=value) too
-  kp find cert certificates.cert-manager.io -A`,
+		Example: `  kdeck find payment -A                  # anything named like "payment", all namespaces
+  kdeck find '^redis' svc,sts,pvc -A
+  kdeck find 'team=core' --labels -A     # match labels (key=value) too
+  kdeck find cert certificates.cert-manager.io -A`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := match.Compile(args[0])

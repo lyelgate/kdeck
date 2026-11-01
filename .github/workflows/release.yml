@@ -49,5 +49,5 @@ jobs:
           push: true
           build-args: VERSION=${{ github.ref_name }}
           tags: |
-            ghcr.io/lyelgate/kubepilot:${{ github.ref_name }}
-            ghcr.io/lyelgate/kubepilot:latest
+            ghcr.io/lyelgate/kdeck:${{ github.ref_name }}
+            ghcr.io/lyelgate/kdeck:latest

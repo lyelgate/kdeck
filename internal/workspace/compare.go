@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 // Side is "context:namespace"; either part may be empty (current).
@@ -234,7 +234,7 @@ func orDash(s string) string {
 	return s
 }
 
-// CompareCommand returns "kp compare".
+// CompareCommand returns "kdeck compare".
 func CompareCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Command {
 	var filter string
 	cmd := &cobra.Command{
@@ -243,10 +243,10 @@ func CompareCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.
 		Short:   "Drift between two namespaces or clusters: images, replicas, resources, env, config refs",
 		Long: `Compare Deployments, StatefulSets and DaemonSets on two sides. Each side is
 CONTEXT:NAMESPACE; leave either part empty for the current one.`,
-		Example: `  kp compare staging prod                    # two namespaces, current context
-  kp compare stg-cluster:shop prod-cluster:shop
-  kp compare :shop prod-eu:                  # current context's shop vs prod-eu's default ns
-  kp compare staging prod -m '^api'          # only workloads matching a regex`,
+		Example: `  kdeck compare staging prod                    # two namespaces, current context
+  kdeck compare stg-cluster:shop prod-cluster:shop
+  kdeck compare :shop prod-eu:                  # current context's shop vs prod-eu's default ns
+  kdeck compare staging prod -m '^api'          # only workloads matching a regex`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, b := ParseSide(args[0]), ParseSide(args[1])

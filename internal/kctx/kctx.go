@@ -21,24 +21,24 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/lyelgate/kubepilot/internal/config"
-	"github.com/lyelgate/kubepilot/internal/kubeconfig"
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/kubeconfig"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
-// NewCtxCommand returns "kp ctx".
+// NewCtxCommand returns "kdeck ctx".
 func NewCtxCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ctx [NAME | -]",
-		Aliases: []string{"context", "cx", "kpctx"},
+		Aliases: []string{"context", "cx", "dkctx"},
 		Short:   "List or switch kubeconfig contexts (\"-\" = previous, no argument = picker)",
-		Example: `  kp ctx            # pick with fzf, or list when fzf is missing
-  kp ctx prod       # switch to "prod" (exact name, or a regex with one match)
-  kp ctx 'lke.*dev' # regex; several matches open the picker
-  kp ctx -          # back to the previous context
-  kp ctx -c         # print the current context
-  kp ctx rename old new
-  kp ctx rm old`,
+		Example: `  kdeck ctx            # pick with fzf, or list when fzf is missing
+  kdeck ctx prod       # switch to "prod" (exact name, or a regex with one match)
+  kdeck ctx 'lke.*dev' # regex; several matches open the picker
+  kdeck ctx -          # back to the previous context
+  kdeck ctx -c         # print the current context
+  kdeck ctx rename old new
+  kdeck ctx rm old`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, access, err := load(flags)
@@ -100,8 +100,8 @@ func NewCtxCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.C
 	imp := &cobra.Command{
 		Use:   "import FILE",
 		Short: "Merge a kubeconfig file into yours (backup first; entries renamed so nothing is overwritten)",
-		Example: `  kp ctx import ~/Downloads/staging.yaml --name staging --set-current
-  kp ctx import vendor-kubeconfig.yaml`,
+		Example: `  kdeck ctx import ~/Downloads/staging.yaml --name staging --set-current
+  kdeck ctx import vendor-kubeconfig.yaml`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			raw, err := os.ReadFile(args[0])
@@ -186,17 +186,17 @@ func NewCtxCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.C
 	return cmd
 }
 
-// NewNsCommand returns "kp ns".
+// NewNsCommand returns "kdeck ns".
 func NewNsCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ns [NAME | -]",
-		Aliases: []string{"namespace-switch", "kpns"},
+		Aliases: []string{"namespace-switch", "dkns"},
 		Short:   "List or switch the current context's namespace (\"-\" = previous)",
-		Example: `  kp ns             # pick with fzf, or list when fzf is missing
-  kp ns payments    # use "payments" (exact name, or a regex with one match)
-  kp ns '^pay'      # regex
-  kp ns -           # back to the previous namespace
-  kp ns -c          # print the current namespace`,
+		Example: `  kdeck ns             # pick with fzf, or list when fzf is missing
+  kdeck ns payments    # use "payments" (exact name, or a regex with one match)
+  kdeck ns '^pay'      # regex
+  kdeck ns -           # back to the previous namespace
+  kdeck ns -c          # print the current namespace`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, access, err := load(flags)
@@ -209,7 +209,7 @@ func NewNsCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Co
 			}
 			kc, ok := cfg.Contexts[ctxName]
 			if !ok {
-				return fmt.Errorf("no current context; run \"kp ctx\" first")
+				return fmt.Errorf("no current context; run \"kdeck ctx\" first")
 			}
 			current := kc.Namespace
 			if current == "" {
@@ -356,7 +356,7 @@ func contains(list []string, s string) bool {
 
 // pick runs fzf when it is installed and both stdin and stdout are terminals.
 func pick(items []string, current string) (string, bool) {
-	if os.Getenv("KP_NO_FZF") != "" || !isTerminal(os.Stdin) || !isTerminal(os.Stdout) {
+	if os.Getenv("KDECK_NO_FZF") != "" || !isTerminal(os.Stdin) || !isTerminal(os.Stdout) {
 		return "", false
 	}
 	fzf, err := exec.LookPath("fzf")

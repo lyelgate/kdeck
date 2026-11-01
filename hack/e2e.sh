@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 # End-to-end check against a disposable cluster (kind in CI).
-# Plants silent failures and asserts kp finds them; checks the production
-# guard and a few shortcuts. Usage: hack/e2e.sh ./bin/kp
+# Plants silent failures and asserts kdeck finds them; checks the production
+# guard and a few shortcuts. Usage: hack/e2e.sh ./bin/kdeck
 # Uses the current KUBECONFIG context; never run it against a real cluster.
 set -euo pipefail
-KP=${1:-./bin/kp}
+KP=${1:-./bin/kdeck}
 KP=$(cd "$(dirname "$KP")" && pwd)/$(basename "$KP")
-export KP_HOME=$(mktemp -d) KP_NO_FZF=1
-NS=kp-e2e
+export KDECK_HOME=$(mktemp -d) KDECK_NO_FZF=1
+NS=kdeck-e2e
 cleanup() {
   echo "--- cleanup"
   # The guard test marks this context as production; confirm our own deletes.
-  export KP_CONFIRM_CONTEXT=$($KP ctx -c)
+  export KDECK_CONFIRM_CONTEXT=$($KP ctx -c)
   $KP -n $NS patch pvc stuck --type=merge -p '{"metadata":{"finalizers":null}}' >/dev/null 2>&1 || true
   $KP delete ns $NS --wait=false >/dev/null 2>&1 || true
-  $KP delete validatingwebhookconfiguration kp-e2e-policy --ignore-not-found >/dev/null
-  $KP delete clusterrolebinding kp-e2e-dangling --ignore-not-found >/dev/null
-  rm -rf "$KP_HOME"
+  $KP delete validatingwebhookconfiguration kdeck-e2e-policy --ignore-not-found >/dev/null
+  $KP delete clusterrolebinding kdeck-e2e-dangling --ignore-not-found >/dev/null
+  rm -rf "$KDECK_HOME"
 }
 trap cleanup EXIT
 
-cat > "$KP_HOME/config.yaml" <<'EOF'
+cat > "$KDECK_HOME/config.yaml" <<'EOF'
 silent:
   checks:
     SF-CRON-001: {thresholds: {missedRuns: 1}}
@@ -52,7 +52,7 @@ spec:
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
-metadata: {name: kp-e2e-policy}
+metadata: {name: kdeck-e2e-policy}
 webhooks:
 - name: strict.example.com
   failurePolicy: Fail
@@ -98,7 +98,7 @@ spec: {holderIdentity: ghost, leaseDurationSeconds: 15, renewTime: "$RENEW"}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
-metadata: {name: kp-e2e-dangling}
+metadata: {name: kdeck-e2e-dangling}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: view}
 subjects: [{kind: ServiceAccount, namespace: $NS, name: no-such-sa}]
 ---
@@ -127,22 +127,22 @@ $KP -n $NS wait deploy/bad-image --for=jsonpath='{.status.conditions[?(@.type=="
 for i in $(seq 1 30); do $KP -n $NS get jobs -o name 2>/dev/null | grep -q . && break; $KP -n $NS wait --for=jsonpath='{.status.lastScheduleTime}' cronjob/nightly-backup --timeout=10s >/dev/null 2>&1 || true; done
 $KP -n $NS wait --for=condition=Failed job --all --timeout=180s >/dev/null
 
-echo "--- kp silent"
+echo "--- kdeck silent"
 $KP silent --fail-on none
-$KP silent -o json --fail-on none > "$KP_HOME/silent.json"
+$KP silent -o json --fail-on none > "$KDECK_HOME/silent.json"
 fail=0
 for id in SF-CRON-001 SF-WEBHOOK-001 SF-LEASE-001 SF-RBAC-001 SF-NET-001 SF-NET-002 SF-PDB-001 SF-ROLLOUT-001 SF-FINALIZER-001 SF-HELM-001; do
-  if grep -q "\"check\": \"$id\"" "$KP_HOME/silent.json"; then echo "ok   $id"; else echo "MISS $id"; fail=1; fi
+  if grep -q "\"check\": \"$id\"" "$KDECK_HOME/silent.json"; then echo "ok   $id"; else echo "MISS $id"; fail=1; fi
 done
 
 echo "--- guard"
 $KP safety prod add "$($KP ctx -c)" >/dev/null
 if $KP -n $NS scale deploy/web --replicas=2 </dev/null >/dev/null 2>&1; then echo "MISS guard: production write was not refused"; fail=1; else echo "ok   production write refused"; fi
-KP_CONFIRM_CONTEXT=$($KP ctx -c) $KP -n $NS scale deploy/web --replicas=1 >/dev/null && echo "ok   confirmed write allowed"
+KDECK_CONFIRM_CONTEXT=$($KP ctx -c) $KP -n $NS scale deploy/web --replicas=1 >/dev/null && echo "ok   confirmed write allowed"
 $KP history | grep -q "scale deploy/web" && echo "ok   history recorded" || { echo "MISS history"; fail=1; }
 
 echo "--- shortcuts"
-[ "$(KP_DEBUG_ALIAS=1 $KP -n $NS kgpo 2>&1 >/dev/null | head -1)" = "kp: kgpo -> -n $NS get pods" ] && echo "ok   kgpo expands" || { echo "MISS kgpo"; fail=1; }
-$KP -n $NS po web >/dev/null && echo "ok   kp po regex"
+[ "$(KDECK_DEBUG_ALIAS=1 $KP -n $NS kgpo 2>&1 >/dev/null | head -1)" = "kdeck: kgpo -> -n $NS get pods" ] && echo "ok   kgpo expands" || { echo "MISS kgpo"; fail=1; }
+$KP -n $NS po web >/dev/null && echo "ok   kdeck po regex"
 
 exit $fail

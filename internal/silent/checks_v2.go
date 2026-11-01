@@ -143,7 +143,7 @@ func checkSTSDS(ctx context.Context, s *Snapshot, p *Params) ([]Finding, error) 
 		}
 		f := finding("SF-ROLLOUT-002", "StatefulSet or DaemonSet rollout never finishes", sev, "DaemonSet", ds.ObjectMeta,
 			fmt.Sprintf("%d of %d nodes updated, %d unavailable", st.UpdatedNumberScheduled, st.DesiredNumberScheduled, st.NumberUnavailable),
-			"kp pods "+ds.Name+" -n "+ds.Namespace+" --bad; a pod failing on some nodes (taints, resources, image) blocks the rollout there")
+			"kdeck pods "+ds.Name+" -n "+ds.Namespace+" --bad; a pod failing on some nodes (taints, resources, image) blocks the rollout there")
 		out = append(out, f)
 	}
 	return out, nil
@@ -405,7 +405,7 @@ func checkFailedPods(ctx context.Context, s *Snapshot, p *Params) ([]Finding, er
 		}
 		f := Finding{Check: "SF-POD-001", Title: "Failed and evicted pods piling up", Severity: Low, Kind: "Namespace", Name: ns,
 			Summary:     fmt.Sprintf("%d pods in phase Failed (evicted or errored) are left behind", n),
-			Remediation: "kp clean -n " + ns + " --yes, and look at why pods are being evicted (node pressure)"}
+			Remediation: "kdeck clean -n " + ns + " --yes, and look at why pods are being evicted (node pressure)"}
 		f.Since, f.SinceSource = tp(oldest[ns]), "oldest failed pod"
 		out = append(out, f)
 	}

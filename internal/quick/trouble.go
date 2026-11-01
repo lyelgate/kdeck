@@ -30,7 +30,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 // TroubleCommands are the troubleshooting commands.
@@ -44,7 +44,7 @@ func TroubleCommands(d Deps) []*cobra.Command {
 
 // --- why -------------------------------------------------------------------------
 
-// Diagnosis is the outcome of "kp why".
+// Diagnosis is the outcome of "kdeck why".
 type Diagnosis struct {
 	Verdict  string
 	Evidence []string
@@ -77,13 +77,13 @@ func Diagnose(p corev1.Pod, events []corev1.Event, now time.Time) Diagnosis {
 	if p.DeletionTimestamp != nil && now.Sub(p.DeletionTimestamp.Time) > 5*time.Minute {
 		d.Verdict = fmt.Sprintf("stuck terminating for %s", age(p.DeletionTimestamp.Time))
 		d.Evidence = append(d.Evidence, fmt.Sprintf("finalizers: %v, node: %s", p.Finalizers, dash(p.Spec.NodeName)))
-		d.Next = append(d.Next, "If the node is gone or NotReady, the kubelet cannot confirm the stop; check kp nodes", "Remove finalizers only once you know what they protect")
+		d.Next = append(d.Next, "If the node is gone or NotReady, the kubelet cannot confirm the stop; check kdeck nodes", "Remove finalizers only once you know what they protect")
 		return d
 	}
 	if p.Status.Phase == corev1.PodFailed && p.Status.Reason == "Evicted" {
 		d.Verdict = "evicted by the kubelet"
 		d.Evidence = append(d.Evidence, p.Status.Message)
-		d.Next = append(d.Next, "The node ran short of memory or disk; set requests close to real usage (kp fit) and clean up with kp clean --yes")
+		d.Next = append(d.Next, "The node ran short of memory or disk; set requests close to real usage (kdeck fit) and clean up with kdeck clean --yes")
 		return d
 	}
 	if c, ok := podCond(p, corev1.PodScheduled); ok && c.Status == corev1.ConditionFalse {
@@ -92,7 +92,7 @@ func Diagnose(p corev1.Pod, events []corev1.Event, now time.Time) Diagnosis {
 		msg := strings.ToLower(c.Message)
 		switch {
 		case strings.Contains(msg, "insufficient"):
-			d.Next = append(d.Next, "No node has enough free CPU or memory for its requests: lower requests, add nodes, or check kp nodes")
+			d.Next = append(d.Next, "No node has enough free CPU or memory for its requests: lower requests, add nodes, or check kdeck nodes")
 		case strings.Contains(msg, "taint"):
 			d.Next = append(d.Next, "Nodes have taints the pod does not tolerate: add tolerations or schedule elsewhere")
 		case strings.Contains(msg, "affinity") || strings.Contains(msg, "selector"):
@@ -120,7 +120,7 @@ func Diagnose(p corev1.Pod, events []corev1.Event, now time.Time) Diagnosis {
 				case strings.Contains(lm, "no such host") || strings.Contains(lm, "timeout") || strings.Contains(lm, "i/o"):
 					d.Next = append(d.Next, "The node cannot reach the registry: DNS, egress firewall or proxy")
 				default:
-					d.Next = append(d.Next, "kp desc "+p.Name+" shows the pull error in events")
+					d.Next = append(d.Next, "kdeck desc "+p.Name+" shows the pull error in events")
 				}
 			case "CreateContainerConfigError", "CreateContainerError":
 				d.Verdict = fmt.Sprintf("container %s cannot be created: %s", s.Name, w.Reason)
@@ -136,26 +136,26 @@ func Diagnose(p corev1.Pod, events []corev1.Event, now time.Time) Diagnosis {
 					d.Evidence = append(d.Evidence, fmt.Sprintf("last exit code %d (%s) %s ago: %s", t.ExitCode, t.Reason, age(t.FinishedAt.Time), dash(meaning)))
 					switch {
 					case t.Reason == "OOMKilled" || t.ExitCode == 137:
-						d.Next = append(d.Next, "Raise its memory limit or fix the leak; compare usage with kp fit "+p.Name)
+						d.Next = append(d.Next, "Raise its memory limit or fix the leak; compare usage with kdeck fit "+p.Name)
 					case t.ExitCode == 127 || t.ExitCode == 126:
 						d.Next = append(d.Next, "Fix command/args or the image entrypoint")
 					case t.ExitCode == 143:
 						d.Next = append(d.Next, "Check the liveness probe: it may kill the app before it is ready (raise initialDelaySeconds or use a startupProbe)")
 					default:
-						d.Next = append(d.Next, "Read the crash output: kp log "+p.Name+" -p -c "+s.Name)
+						d.Next = append(d.Next, "Read the crash output: kdeck log "+p.Name+" -p -c "+s.Name)
 					}
 				} else {
-					d.Next = append(d.Next, "kp log "+p.Name+" -p -c "+s.Name)
+					d.Next = append(d.Next, "kdeck log "+p.Name+" -p -c "+s.Name)
 				}
 			case "ContainerCreating":
 				d.Verdict = fmt.Sprintf("container %s stuck creating", s.Name)
 				d.Evidence = append(d.Evidence, warn("FailedMount")...)
 				d.Evidence = append(d.Evidence, warn("FailedAttachVolume")...)
-				d.Next = append(d.Next, "Usually a volume that cannot attach or mount, or a CNI problem; see the events above and kp silent --check storage")
+				d.Next = append(d.Next, "Usually a volume that cannot attach or mount, or a CNI problem; see the events above and kdeck silent --check storage")
 			default:
 				d.Verdict = fmt.Sprintf("container %s waiting: %s", s.Name, w.Reason)
 				d.Evidence = append(d.Evidence, w.Message)
-				d.Next = append(d.Next, "kp desc "+p.Name)
+				d.Next = append(d.Next, "kdeck desc "+p.Name)
 			}
 			d.Evidence = append(d.Evidence, warn("")...)
 			return d
@@ -172,9 +172,9 @@ func Diagnose(p corev1.Pod, events []corev1.Event, now time.Time) Diagnosis {
 			}
 			d.Evidence = append(d.Evidence, fmt.Sprintf("last exit code %d (%s) %s ago: %s", t.ExitCode, t.Reason, age(t.FinishedAt.Time), dash(meaning)))
 			if t.Reason == "OOMKilled" || t.ExitCode == 137 {
-				d.Next = append(d.Next, "Raise its memory limit or fix the leak; compare usage with kp fit "+p.Name)
+				d.Next = append(d.Next, "Raise its memory limit or fix the leak; compare usage with kdeck fit "+p.Name)
 			} else {
-				d.Next = append(d.Next, "Read the crash output: kp log "+p.Name+" -p -c "+st.Name)
+				d.Next = append(d.Next, "Read the crash output: kdeck log "+p.Name+" -p -c "+st.Name)
 			}
 			return d
 		}
@@ -187,7 +187,7 @@ func Diagnose(p corev1.Pod, events []corev1.Event, now time.Time) Diagnosis {
 				d.Next = append(d.Next, "The readiness probe fails: check its path, port and timeout against what the app serves")
 			} else {
 				d.Evidence = append(d.Evidence, c.Message)
-				d.Next = append(d.Next, "Check readiness gates and the readiness probe in kp desc "+p.Name)
+				d.Next = append(d.Next, "Check readiness gates and the readiness probe in kdeck desc "+p.Name)
 			}
 			return d
 		}
@@ -203,7 +203,7 @@ func Diagnose(p corev1.Pod, events []corev1.Event, now time.Time) Diagnosis {
 					d.Evidence = append(d.Evidence, fmt.Sprintf("%s last exit %d (%s) %s ago", s.Name, t.ExitCode, t.Reason, age(t.FinishedAt.Time)))
 				}
 			}
-			d.Next = append(d.Next, "kp log "+p.Name+" -p shows the output before the last restart")
+			d.Next = append(d.Next, "kdeck log "+p.Name+" -p shows the output before the last restart")
 		}
 		return d
 	}
@@ -213,7 +213,7 @@ func Diagnose(p corev1.Pod, events []corev1.Event, now time.Time) Diagnosis {
 	}
 	d.Verdict = "phase " + string(p.Status.Phase)
 	d.Evidence = append(d.Evidence, warn("")...)
-	d.Next = append(d.Next, "kp desc "+p.Name)
+	d.Next = append(d.Next, "kdeck desc "+p.Name)
 	return d
 }
 
@@ -232,8 +232,8 @@ func whyCmd(d Deps) *cobra.Command {
 		Use:   "why POD-REGEX",
 		Short: "Explain why a pod is unhealthy: scheduling, image pulls, crashes (exit codes), config, probes, mounts",
 		Long:  "Plain-language diagnosis of a pod from its status and events, with next steps. Deterministic: no AI, nothing sent anywhere.\n" + regexHelp,
-		Example: `  kp why api
-  kp why '^worker-' --all`,
+		Example: `  kdeck why api
+  kdeck why '^worker-' --all`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pods, err := targets(d, cmd, args[0], allNS, every)
@@ -315,8 +315,8 @@ func traceCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "trace URL",
 		Short: "Follow a URL through Ingress or HTTPRoute, TLS, Service, endpoints and pods; points at the broken link",
-		Example: `  kp trace https://shop.example.com/api/orders
-  kp trace shop.example.com/            # scheme optional`,
+		Example: `  kdeck trace https://shop.example.com/api/orders
+  kdeck trace shop.example.com/            # scheme optional`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			raw := args[0]
@@ -401,7 +401,7 @@ func traceCmd(d Deps) *cobra.Command {
 						} else if err != nil {
 							add("TLS", true, "secret %s/%s (could not read: %v)", best.Namespace, secret, firstLineOf(err.Error()))
 						} else {
-							add("TLS", true, "secret %s/%s present (expiry: kp silent --sensitive --check SF-CERT-001)", best.Namespace, secret)
+							add("TLS", true, "secret %s/%s present (expiry: kdeck silent --sensitive --check SF-CERT-001)", best.Namespace, secret)
 						}
 					}
 				}
@@ -567,7 +567,7 @@ func traceService(ctx context.Context, cs kubernetes.Interface, ns, name, port s
 		add("Endpoints", false, "no pods match selector %s", labels.SelectorFromSet(svc.Spec.Selector))
 		return
 	case ready == 0:
-		add("Endpoints", false, "%d pods match, none ready (kp why %s)", matched, pods.Items[0].Name)
+		add("Endpoints", false, "%d pods match, none ready (kdeck why %s)", matched, pods.Items[0].Name)
 	default:
 		add("Endpoints", true, "%d ready, %d not ready, %d pods match", ready, notReady, matched)
 	}
@@ -630,9 +630,9 @@ func fitCmd(d Deps) *cobra.Command {
 		Use:   "fit [POD-REGEX]",
 		Short: "Real CPU and memory use vs requests and limits per container: OOM risk, throttling, over/under-requested",
 		Long:  "Compare live usage (metrics-server) with requests and limits. One sample, so treat it as a hint, not a sizing decision.\n" + regexHelp,
-		Example: `  kp fit                 # current namespace
-  kp fit api -A
-  kp fit -A --problems   # only containers with a verdict`,
+		Example: `  kdeck fit                 # current namespace
+  kdeck fit api -A
+  kdeck fit -A --problems   # only containers with a verdict`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pattern := ""
@@ -657,7 +657,7 @@ func fitCmd(d Deps) *cobra.Command {
 			}
 			pm, err := dyn.Resource(gvrPodMetrics).Namespace(ns).List(cmd.Context(), metav1.ListOptions{})
 			if err != nil {
-				return fmt.Errorf("metrics-server is not available (%s); install it to use kp fit", firstLineOf(err.Error()))
+				return fmt.Errorf("metrics-server is not available (%s); install it to use kdeck fit", firstLineOf(err.Error()))
 			}
 			usage := map[string]map[string]corev1.ResourceList{}
 			for _, item := range pm.Items {
@@ -747,9 +747,9 @@ func timelineCmd(d Deps) *cobra.Command {
 		Use:     "timeline TYPE/NAME | POD-REGEX",
 		Aliases: []string{"tl-events", "history-of"},
 		Short:   "What happened to a workload, in order: events, rollouts, restarts and crashes of it, its ReplicaSets and pods",
-		Example: `  kp timeline deploy/api
-  kp timeline deploy/api --since 30m
-  kp timeline api               # pods matching a regex`,
+		Example: `  kdeck timeline deploy/api
+  kdeck timeline deploy/api --since 30m
+  kdeck timeline api               # pods matching a regex`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cs, ns, err := d.client()
@@ -857,8 +857,8 @@ func nodeShCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "node-sh NODE-REGEX",
 		Short: "Root shell on a node (kubectl debug, host filesystem at /), debug pod removed afterwards",
-		Example: `  kp node-sh worker-3
-  kp node-sh lke --image nicolaka/netshoot:v0.13`,
+		Example: `  kdeck node-sh worker-3
+  kdeck node-sh lke --image nicolaka/netshoot:v0.13`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cs, ns, err := d.client()
@@ -924,8 +924,8 @@ func editSecretCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit-secret SECRET",
 		Short: "Edit a Secret's values decoded in your editor; re-encoded on save (temp file wiped afterwards)",
-		Example: `  kp edit-secret db-credentials
-  KUBE_EDITOR="code --wait" kp edit-secret api-keys`,
+		Example: `  kdeck edit-secret db-credentials
+  KUBE_EDITOR="code --wait" kdeck edit-secret api-keys`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cs, ns, err := d.client()
@@ -945,7 +945,7 @@ func editSecretCmd(d Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			dir, err := os.MkdirTemp("", "kp-secret-")
+			dir, err := os.MkdirTemp("", "kdeck-secret-")
 			if err != nil {
 				return err
 			}
@@ -998,7 +998,7 @@ func editSecretCmd(d Deps) *cobra.Command {
 			sort.Strings(added)
 			sort.Strings(changed)
 			sort.Strings(removed)
-			fmt.Fprintf(d.Out, "Updated secret %s/%s: added %v, changed %v, removed %v. Pods read it at start: kp restart if needed.\n", ns, sec.Name, added, changed, removed)
+			fmt.Fprintf(d.Out, "Updated secret %s/%s: added %v, changed %v, removed %v. Pods read it at start: kdeck restart if needed.\n", ns, sec.Name, added, changed, removed)
 			return nil
 		},
 	}

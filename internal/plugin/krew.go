@@ -1,8 +1,8 @@
-// Package plugin is a krew-compatible plugin manager built into kp.
+// Package plugin is a krew-compatible plugin manager built into kdeck.
 //
 // It reads the same index as krew (github.com/kubernetes-sigs/krew-index),
-// installs plugins into ~/.kp, and links them as kubectl-<name> in ~/.kp/bin,
-// which kp puts on PATH at start-up. Existing krew installs (~/.krew/bin)
+// installs plugins into ~/.kdeck, and links them as kubectl-<name> in ~/.kdeck/bin,
+// which kdeck puts on PATH at start-up. Existing krew installs (~/.krew/bin)
 // keep working too. Every download is verified against the index's sha256.
 package plugin
 
@@ -26,8 +26,8 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/lyelgate/kubepilot/internal/config"
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 // IndexURL is the krew index archive.
@@ -129,7 +129,7 @@ func binDir() string     { return config.Path("bin") }
 func storeDir() string   { return config.Path("store") }
 func receiptDir() string { return config.Path("receipts") }
 
-// BinDirs returns plugin directories to put on PATH: kp's own, then krew's.
+// BinDirs returns plugin directories to put on PATH: kdeck's own, then krew's.
 func BinDirs() []string {
 	dirs := []string{binDir()}
 	if h, err := os.UserHomeDir(); err == nil {
@@ -215,7 +215,7 @@ func Load(name string) (*Manifest, error) {
 	}
 	data, err := os.ReadFile(filepath.Join(indexDir(), name+".yaml"))
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("plugin %q not found in the index (try: kp plugin search %s)", name, name)
+		return nil, fmt.Errorf("plugin %q not found in the index (try: kdeck plugin search %s)", name, name)
 	}
 	if err != nil {
 		return nil, err
@@ -268,7 +268,7 @@ func Search(q string) ([]*Manifest, error) {
 	return out, nil
 }
 
-// Installed lists receipts of plugins installed by kp.
+// Installed lists receipts of plugins installed by kdeck.
 func Installed() ([]Receipt, error) {
 	entries, err := os.ReadDir(receiptDir())
 	if errors.Is(err, os.ErrNotExist) {
@@ -317,7 +317,7 @@ func Install(name string, log io.Writer) (*Manifest, error) {
 	if got := hex.EncodeToString(sum[:]); !strings.EqualFold(got, plat.SHA256) {
 		return nil, fmt.Errorf("sha256 mismatch for %s: got %s, index says %s (refusing to install)", plat.URI, got, plat.SHA256)
 	}
-	unpack, err := os.MkdirTemp("", "kp-plugin-")
+	unpack, err := os.MkdirTemp("", "kdeck-plugin-")
 	if err != nil {
 		return nil, err
 	}
@@ -387,11 +387,11 @@ func Install(name string, log io.Writer) (*Manifest, error) {
 	return m, nil
 }
 
-// Uninstall removes a plugin installed by kp.
+// Uninstall removes a plugin installed by kdeck.
 func Uninstall(name string) error {
 	rec := filepath.Join(receiptDir(), name+".yaml")
 	if _, err := os.Stat(rec); err != nil {
-		return fmt.Errorf("plugin %q is not installed by kp", name)
+		return fmt.Errorf("plugin %q is not installed by kdeck", name)
 	}
 	_ = os.Remove(filepath.Join(binDir(), BinName(name)))
 	_ = os.RemoveAll(filepath.Join(storeDir(), name))

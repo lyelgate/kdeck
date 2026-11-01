@@ -2,7 +2,7 @@
 //
 // Three kinds of shortcut are understood, checked in this order:
 //
-//  1. User aliases from config.yaml ("kp alias set kgr 'get pods -o wide'").
+//  1. User aliases from config.yaml ("kdeck alias set kgr 'get pods -o wide'").
 //
 //  2. Verb aliases: one word for a common command, such as "l" for "logs"
 //     or "rr" for "rollout restart".
@@ -72,7 +72,7 @@ var Verbs = map[string][]string{
 	"tlo": {"tsh", "logout"},
 }
 
-// VerbHelp describes each verb alias, for "kp alias list".
+// VerbHelp describes each verb alias, for "kdeck alias list".
 var VerbHelp = map[string]string{}
 
 func init() {
@@ -349,7 +349,7 @@ func SplitWords(s string) []string {
 	return words
 }
 
-// Curated is the set of combinations "kp shell-init" turns into shell aliases
+// Curated is the set of combinations "kdeck shell-init" turns into shell aliases
 // by default. "--all" generates every valid combination instead.
 var Curated = []string{
 	"kgpo", "kgpoa", "kgpoowide", "kgpooyaml", "kgpow", "kgpol", "kgpon", "kgposl",
@@ -362,7 +362,7 @@ var Curated = []string{
 	"ksysgpo", "ksysgpoowide", "ksysgdep", "ksysgsvc", "ksysdpo", "ksyslo",
 }
 
-// All enumerates every valid combination word, for "kp shell-init --all".
+// All enumerates every valid combination word, for "kdeck shell-init --all".
 func All() []string {
 	var words []string
 	cmdKeys := byLengthDesc(cmds)

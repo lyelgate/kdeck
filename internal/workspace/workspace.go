@@ -21,24 +21,24 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/lyelgate/kubepilot/internal/config"
-	"github.com/lyelgate/kubepilot/internal/guard"
-	"github.com/lyelgate/kubepilot/internal/match"
-	"github.com/lyelgate/kubepilot/internal/teleport"
+	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/guard"
+	"github.com/lyelgate/kdeck/internal/match"
+	"github.com/lyelgate/kdeck/internal/teleport"
 )
 
 // --- safety ----------------------------------------------------------------------
 
-// SafetyCommand returns "kp safety".
+// SafetyCommand returns "kdeck safety".
 func SafetyCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "safety",
 		Short: "Production and read-only rules: which contexts need confirmation, which refuse changes",
-		Example: `  kp safety                         # rules, and how they apply to the current context
-  kp safety prod add 'prod|live'    # writes on matching contexts need the name typed back
-  kp safety ro add '^audit-'        # matching contexts refuse writes and exec
-  kp safety diff off                # skip the diff shown before apply on production
-  kp --ro delete pod x              # one-off read-only (also KP_RO=1)`,
+		Example: `  kdeck safety                         # rules, and how they apply to the current context
+  kdeck safety prod add 'prod|live'    # writes on matching contexts need the name typed back
+  kdeck safety ro add '^audit-'        # matching contexts refuse writes and exec
+  kdeck safety diff off                # skip the diff shown before apply on production
+  kdeck --ro delete pod x              # one-off read-only (also KDECK_RO=1)`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load()
 			if err != nil {
@@ -155,17 +155,17 @@ func list(l []string) string {
 
 // --- history ---------------------------------------------------------------------
 
-// HistoryCommand returns "kp history".
+// HistoryCommand returns "kdeck history".
 func HistoryCommand(out io.Writer) *cobra.Command {
 	var n int
 	var undoOnly bool
 	cmd := &cobra.Command{
 		Use:     "history [REGEX]",
 		Aliases: []string{"hist"},
-		Short:   "Changes and execs you ran through kp: when, where, exit code, and how to undo",
-		Example: `  kp history                 # last 30
-  kp history prod --limit 100   # regex over context and command
-  kp history --undo          # only entries with an undo command`,
+		Short:   "Changes and execs you ran through kdeck: when, where, exit code, and how to undo",
+		Example: `  kdeck history                 # last 30
+  kdeck history prod --limit 100   # regex over context and command
+  kdeck history --undo          # only entries with an undo command`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entries, err := guard.History()
@@ -238,7 +238,7 @@ func gcSessions() {
 	}
 }
 
-// baseKubeconfigs is the KUBECONFIG list without kp session files.
+// baseKubeconfigs is the KUBECONFIG list without kdeck session files.
 func baseKubeconfigs() []string {
 	var out []string
 	for _, p := range filepath.SplitList(os.Getenv("KUBECONFIG")) {
@@ -275,22 +275,22 @@ func EnvLine(shell, value string) string {
 	return "export KUBECONFIG='" + q + "'"
 }
 
-// HereCommand returns "kp here", used by the kh shell function.
+// HereCommand returns "kdeck here", used by the kh shell function.
 func HereCommand(out io.Writer) *cobra.Command {
 	var shell, namespace string
 	var off bool
 	cmd := &cobra.Command{
 		Use:   "here [CONTEXT-REGEX]",
 		Short: "Use a context in this terminal only (other terminals keep theirs); used via the kh shell function",
-		Long: `Switch the context for the current terminal only. kp writes a small session
+		Long: `Switch the context for the current terminal only. kdeck writes a small session
 kubeconfig and prints the line that points KUBECONFIG at it; the kh function
-from "kp shell-init" evaluates that line for you:
+from "kdeck shell-init" evaluates that line for you:
 
   kh prod            # this terminal on prod; every other terminal unchanged
   kh staging -n web  # with a namespace
   kh --off           # back to the shared kubeconfig
 
-Without kh: eval "$(kp here prod --shell zsh)"`,
+Without kh: eval "$(kdeck here prod --shell zsh)"`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			gcSessions()
@@ -422,7 +422,7 @@ func Prompt(format string, color bool) string {
 	return "\x1b[32m" + s + "\x1b[0m"
 }
 
-// PromptCommand returns "kp prompt" (documentation; the fast path in the app
+// PromptCommand returns "kdeck prompt" (documentation; the fast path in the app
 // answers before the command tree is built).
 func PromptCommand(out io.Writer) *cobra.Command {
 	var format string
@@ -433,10 +433,10 @@ func PromptCommand(out io.Writer) *cobra.Command {
 		Long: `Print the current context and namespace for a shell prompt. It reads only the
 kubeconfig, never the API, so it is fast.
 
-  zsh:        setopt PROMPT_SUBST; RPROMPT='$(kp prompt)'
-  bash:       PS1='$(kp prompt) \w \$ '
-  PowerShell: function prompt { "$(kp prompt --no-color) PS $($PWD)> " }
-  starship:   [custom.kp] command = "kp prompt --no-color", when = true`,
+  zsh:        setopt PROMPT_SUBST; RPROMPT='$(kdeck prompt)'
+  bash:       PS1='$(kdeck prompt) \w \$ '
+  PowerShell: function prompt { "$(kdeck prompt --no-color) PS $($PWD)> " }
+  starship:   [custom.kdeck] command = "kdeck prompt --no-color", when = true`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			fmt.Fprintln(out, Prompt(format, !noColor))
 			return nil
@@ -449,16 +449,16 @@ kubeconfig, never the API, so it is fast.
 
 // --- profiles -----------------------------------------------------------------------
 
-// ProfileCommand returns "kp profile".
+// ProfileCommand returns "kdeck profile".
 func ProfileCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "profile [NAME]",
 		Aliases: []string{"prof"},
 		Short:   "Switch Teleport cluster, context and namespace in one step",
-		Example: `  kp profile save payments --teleport prod-us   # from the current context and namespace
-  kp profile payments                           # tsh kube login prod-us, context, namespace
-  kp profile ls
-  kp profile rm payments`,
+		Example: `  kdeck profile save payments --teleport prod-us   # from the current context and namespace
+  kdeck profile payments                           # tsh kube login prod-us, context, namespace
+  kdeck profile ls
+  kdeck profile rm payments`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
@@ -470,7 +470,7 @@ func ProfileCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.
 			}
 			p, ok := cfg.Profiles[args[0]]
 			if !ok {
-				return fmt.Errorf("no profile %q (see: kp profile ls)", args[0])
+				return fmt.Errorf("no profile %q (see: kdeck profile ls)", args[0])
 			}
 			if p.Teleport != "" {
 				if err := teleport.Use(out, p.Teleport); err != nil {
@@ -550,7 +550,7 @@ func ProfileCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.
 
 func listProfiles(out io.Writer, cfg *config.Config) error {
 	if len(cfg.Profiles) == 0 {
-		fmt.Fprintln(out, "No profiles. Create one: kp profile save NAME [--teleport CLUSTER]")
+		fmt.Fprintln(out, "No profiles. Create one: kdeck profile save NAME [--teleport CLUSTER]")
 		return nil
 	}
 	names := make([]string, 0, len(cfg.Profiles))

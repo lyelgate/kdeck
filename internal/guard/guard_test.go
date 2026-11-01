@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kdeck/internal/config"
 )
 
 func TestClassify(t *testing.T) {
@@ -62,9 +62,9 @@ func TestCheck(t *testing.T) {
 	if err := Check(p, Exec, "exec", no); err != nil {
 		t.Error("exec on production needs no confirmation")
 	}
-	t.Setenv("KP_CONFIRM_CONTEXT", "lke-prod-eu")
+	t.Setenv("KDECK_CONFIRM_CONTEXT", "lke-prod-eu")
 	if err := Check(p, Write, "delete", no); err != nil {
-		t.Error("KP_CONFIRM_CONTEXT should confirm in scripts")
+		t.Error("KDECK_CONFIRM_CONTEXT should confirm in scripts")
 	}
 
 	ro := Resolve(cfg, "audit-cluster", false)
@@ -84,7 +84,7 @@ func TestUndoAndDiff(t *testing.T) {
 	if got := ScaleTarget(args); got != "deploy/api" {
 		t.Errorf("scale target %q", got)
 	}
-	if got := UndoHint(args, "prod", "3"); got != "kp --context prod scale deploy/api --replicas=3 -n shop" {
+	if got := UndoHint(args, "prod", "3"); got != "kdeck --context prod scale deploy/api --replicas=3 -n shop" {
 		t.Errorf("undo %q", got)
 	}
 	if got := UndoHint(strings.Fields("rollout restart deploy/api"), "prod", ""); !strings.Contains(got, "rollout undo deploy/api") {

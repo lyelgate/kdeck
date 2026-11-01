@@ -8,21 +8,21 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
-	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kdeck/internal/config"
 )
 
-// SettingsCommand returns "kp settings": export and import kp's own
+// SettingsCommand returns "kdeck settings": export and import kdeck's own
 // configuration (aliases, safety rules, profiles, Teleport proxy, silent
-// tuning, cost prices) to carry it to another machine. kp stores no tokens,
+// tuning, cost prices) to carry it to another machine. kdeck stores no tokens,
 // so the export contains no credentials.
 func SettingsCommand(out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "settings",
-		Short: "Show, export and import kp's settings (aliases, safety, profiles, Teleport, silent, cost)",
-		Example: `  kp settings path
-  kp settings export > kp-settings.yaml
-  kp settings import kp-settings.yaml           # merge into yours
-  kp settings import kp-settings.yaml --replace`,
+		Short: "Show, export and import kdeck's settings (aliases, safety, profiles, Teleport, silent, cost)",
+		Example: `  kdeck settings path
+  kdeck settings export > kdeck-settings.yaml
+  kdeck settings import kdeck-settings.yaml           # merge into yours
+  kdeck settings import kdeck-settings.yaml --replace`,
 	}
 	cmd.AddCommand(&cobra.Command{
 		Use: "path", Short: "Print the settings file location",

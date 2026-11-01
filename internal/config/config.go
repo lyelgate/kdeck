@@ -1,9 +1,9 @@
-// Package config loads kp's user configuration and small pieces of state.
+// Package config loads kdeck's user configuration and small pieces of state.
 //
-// Everything lives under one home directory, $KP_HOME or ~/.kp:
+// Everything lives under one home directory, $KDECK_HOME or ~/.kdeck:
 //
 //	config.yaml   user settings: aliases, silent thresholds and suppressions
-//	state.json    previous context and namespace, for "kp ctx -" and "kp ns -"
+//	state.json    previous context and namespace, for "kdeck ctx -" and "kdeck ns -"
 //	bin/          plugin executables (kubectl-<name>), put on PATH at start-up
 //	store/        unpacked plugin versions
 //	receipts/     one file per installed plugin
@@ -45,14 +45,14 @@ type SafetyConfig struct {
 	DiffBeforeApply *bool `json:"diffBeforeApply,omitempty"`
 }
 
-// Profile switches several things at once with "kp profile NAME".
+// Profile switches several things at once with "kdeck profile NAME".
 type Profile struct {
 	Teleport  string `json:"teleport,omitempty"`  // Teleport kube cluster to log in to first
 	Context   string `json:"context,omitempty"`   // kubeconfig context
 	Namespace string `json:"namespace,omitempty"` // namespace for that context
 }
 
-// CostConfig prices nodes for "kp cost" when the provider is not Linode
+// CostConfig prices nodes for "kdeck cost" when the provider is not Linode
 // (Linode prices come from the API).
 type CostConfig struct {
 	// NodePrices maps node.kubernetes.io/instance-type to a monthly price.
@@ -64,21 +64,21 @@ type CostConfig struct {
 	StoragePerGB float64 `json:"storagePerGB,omitempty"`
 }
 
-// UpdateConfig controls "kp update".
+// UpdateConfig controls "kdeck update".
 type UpdateConfig struct {
 	// Repo is the GitHub owner/name that publishes releases.
 	Repo string `json:"repo,omitempty"`
 }
 
-// TeleportConfig is set once by "kp setup" or "kp tsh setup"; afterwards the
-// short commands (kp tl, kp tls, kp tu) need nothing else.
+// TeleportConfig is set once by "kdeck setup" or "kdeck tsh setup"; afterwards the
+// short commands (kdeck tl, kdeck tls, kdeck tu) need nothing else.
 type TeleportConfig struct {
 	Proxy string `json:"proxy,omitempty"` // e.g. teleport.example.com:443
 	User  string `json:"user,omitempty"`  // optional; tsh defaults to the local user
 	Auth  string `json:"auth,omitempty"`  // optional auth connector (github, okta, ...)
 }
 
-// SilentConfig tunes "kp silent".
+// SilentConfig tunes "kdeck silent".
 type SilentConfig struct {
 	// Checks holds per-check overrides keyed by check ID.
 	Checks map[string]CheckConfig `json:"checks,omitempty"`
@@ -118,28 +118,28 @@ type State struct {
 	PreviousNamespace map[string]string `json:"previousNamespace,omitempty"` // per context
 }
 
-// Home returns kp's home directory, creating it if needed.
+// Home returns kdeck's home directory, creating it if needed.
 func Home() string {
-	dir := os.Getenv("KP_HOME")
+	dir := os.Getenv("KDECK_HOME")
 	if dir == "" {
 		h, err := os.UserHomeDir()
 		if err != nil {
 			h = "."
 		}
-		dir = filepath.Join(h, ".kp")
+		dir = filepath.Join(h, ".kdeck")
 	}
 	_ = os.MkdirAll(dir, 0o755)
 	return dir
 }
 
-// Path joins elements onto kp's home directory.
+// Path joins elements onto kdeck's home directory.
 func Path(elem ...string) string {
 	return filepath.Join(append([]string{Home()}, elem...)...)
 }
 
-// File is the config file: $KP_CONFIG, or config.yaml in kp's home.
+// File is the config file: $KDECK_CONFIG, or config.yaml in kdeck's home.
 func File() string {
-	if f := os.Getenv("KP_CONFIG"); f != "" {
+	if f := os.Getenv("KDECK_CONFIG"); f != "" {
 		return f
 	}
 	return Path("config.yaml")

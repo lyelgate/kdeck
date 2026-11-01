@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewCommand returns "kp plugin", replacing kubectl's own "plugin" command.
-// It keeps "kp plugin list" (installed plugins on PATH) and adds krew's
+// NewCommand returns "kdeck plugin", replacing kubectl's own "plugin" command.
+// It keeps "kdeck plugin list" (installed plugins on PATH) and adds krew's
 // install, search, info, upgrade, uninstall and update.
 func NewCommand(out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
@@ -23,17 +23,17 @@ func NewCommand(out io.Writer) *cobra.Command {
 		Short:   "Install and manage kubectl plugins from the krew index (krew-compatible)",
 		Long: `Install and manage kubectl plugins from the krew index, without installing krew.
 
-Plugins land in ~/.kp and run as "kp <name>" (or "kubectl <name>" if you add
-~/.kp/bin to PATH). Plugins already installed with krew keep working.
+Plugins land in ~/.kdeck and run as "kdeck <name>" (or "kubectl <name>" if you add
+~/.kdeck/bin to PATH). Plugins already installed with krew keep working.
 Every download is checked against the sha256 in the index.`,
-		Example: `  kp plugin update              # refresh the index
-  kp plugin search secret
-  kp plugin info view-secret
-  kp plugin install view-secret tree neat
-  kp view-secret db-creds        # run it
-  kp plugin list                 # installed plugins
-  kp plugin upgrade              # upgrade everything installed by kp
-  kp plugin uninstall tree`,
+		Example: `  kdeck plugin update              # refresh the index
+  kdeck plugin search secret
+  kdeck plugin info view-secret
+  kdeck plugin install view-secret tree neat
+  kdeck view-secret db-creds        # run it
+  kdeck plugin list                 # installed plugins
+  kdeck plugin upgrade              # upgrade everything installed by kdeck
+  kdeck plugin uninstall tree`,
 	}
 	cmd.AddCommand(
 		&cobra.Command{
@@ -115,7 +115,7 @@ Every download is checked against the sha256 in the index.`,
 						failed = append(failed, name)
 						continue
 					}
-					fmt.Fprintf(out, "Installed %s %s. Run it with: kp %s\n", name, m.Spec.Version, name)
+					fmt.Fprintf(out, "Installed %s %s. Run it with: kdeck %s\n", name, m.Spec.Version, name)
 					if m.Spec.Caveats != "" {
 						fmt.Fprintf(out, "Caveats:\n%s\n", strings.TrimSpace(m.Spec.Caveats))
 					}
@@ -129,7 +129,7 @@ Every download is checked against the sha256 in the index.`,
 		&cobra.Command{
 			Use:     "uninstall NAME...",
 			Aliases: []string{"remove", "rm"},
-			Short:   "Uninstall plugins installed by kp",
+			Short:   "Uninstall plugins installed by kdeck",
 			Args:    cobra.MinimumNArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				for _, name := range args {
@@ -143,7 +143,7 @@ Every download is checked against the sha256 in the index.`,
 		},
 		&cobra.Command{
 			Use:   "upgrade [NAME...]",
-			Short: "Upgrade plugins installed by kp (all when no name is given)",
+			Short: "Upgrade plugins installed by kdeck (all when no name is given)",
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if _, err := UpdateIndex(); err != nil {
 					return err
@@ -181,7 +181,7 @@ Every download is checked against the sha256 in the index.`,
 		&cobra.Command{
 			Use:     "list",
 			Aliases: []string{"ls"},
-			Short:   "List installed plugins: kp-managed, krew-managed and any kubectl-* on PATH",
+			Short:   "List installed plugins: kdeck-managed, krew-managed and any kubectl-* on PATH",
 			RunE: func(cmd *cobra.Command, _ []string) error {
 				recs, _ := Installed()
 				tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)

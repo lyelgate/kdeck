@@ -1,5 +1,5 @@
-// Package app assembles kp: the full kubectl command tree, embedded as a
-// library, plus kp's own commands, shortcut expansion and plugin dispatch.
+// Package app assembles kdeck: the full kubectl command tree, embedded as a
+// library, plus kdeck's own commands, shortcut expansion and plugin dispatch.
 package app
 
 import (
@@ -19,35 +19,35 @@ import (
 	kubectlplugin "k8s.io/kubectl/pkg/cmd/plugin"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
-	"github.com/lyelgate/kubepilot/internal/alias"
-	"github.com/lyelgate/kubepilot/internal/cloud"
-	"github.com/lyelgate/kubepilot/internal/config"
-	"github.com/lyelgate/kubepilot/internal/cost"
-	"github.com/lyelgate/kubepilot/internal/guard"
-	"github.com/lyelgate/kubepilot/internal/kctx"
-	"github.com/lyelgate/kubepilot/internal/linode"
-	"github.com/lyelgate/kubepilot/internal/plugin"
-	"github.com/lyelgate/kubepilot/internal/quick"
-	"github.com/lyelgate/kubepilot/internal/selfupdate"
-	"github.com/lyelgate/kubepilot/internal/setup"
-	"github.com/lyelgate/kubepilot/internal/shell"
-	"github.com/lyelgate/kubepilot/internal/silent"
-	"github.com/lyelgate/kubepilot/internal/teleport"
-	"github.com/lyelgate/kubepilot/internal/workspace"
+	"github.com/lyelgate/kdeck/internal/alias"
+	"github.com/lyelgate/kdeck/internal/cloud"
+	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/cost"
+	"github.com/lyelgate/kdeck/internal/guard"
+	"github.com/lyelgate/kdeck/internal/kctx"
+	"github.com/lyelgate/kdeck/internal/linode"
+	"github.com/lyelgate/kdeck/internal/plugin"
+	"github.com/lyelgate/kdeck/internal/quick"
+	"github.com/lyelgate/kdeck/internal/selfupdate"
+	"github.com/lyelgate/kdeck/internal/setup"
+	"github.com/lyelgate/kdeck/internal/shell"
+	"github.com/lyelgate/kdeck/internal/silent"
+	"github.com/lyelgate/kdeck/internal/teleport"
+	"github.com/lyelgate/kdeck/internal/workspace"
 )
 
 // Version is set at build time with -ldflags "-X .../internal/app.Version=v0.1.0".
 var Version = "dev"
 
-// names under which the binary behaves as plain kp (anything else is
-// treated as a shortcut name, busybox style: a symlink named kgpo runs "kp kgpo").
-var selfNames = map[string]bool{"kp": true, "kubepilot": true, "k": true, "kubectl": true, "kubectl-kp": true}
+// names under which the binary behaves as plain kdeck (anything else is
+// treated as a shortcut name, busybox style: a symlink named kgpo runs "kdeck kgpo").
+var selfNames = map[string]bool{"kdeck": true, "k": true, "kubectl": true, "kubectl-kdeck": true}
 
-// Run executes kp with the process arguments and returns the exit code.
+// Run executes kdeck with the process arguments and returns the exit code.
 func Run(argv []string) int {
 	base := strings.TrimSuffix(filepath.Base(argv[0]), ".exe")
 	args := append([]string{}, argv[1:]...)
-	if !selfNames[base] && !strings.HasPrefix(base, "kp-") && !strings.HasPrefix(base, "kp.") {
+	if !selfNames[base] && !strings.HasPrefix(base, "kdeck-") && !strings.HasPrefix(base, "kdeck.") {
 		args = append([]string{base}, args...)
 	}
 
@@ -82,10 +82,10 @@ func Run(argv []string) int {
 	// aliases are applied there, after ours).
 	names := commandNames()
 	expanded, used := alias.Expand(args, cfg.Aliases, func(w string) bool { return names[w] })
-	if used != "" && os.Getenv("KP_DEBUG_ALIAS") != "" {
-		fmt.Fprintf(os.Stderr, "kp: %s -> %s\n", used, strings.Join(expanded, " "))
+	if used != "" && os.Getenv("KDECK_DEBUG_ALIAS") != "" {
+		fmt.Fprintf(os.Stderr, "kdeck: %s -> %s\n", used, strings.Join(expanded, " "))
 	}
-	if kf.contexts != "" && os.Getenv("KP_MULTI_CHILD") == "" {
+	if kf.contexts != "" && os.Getenv("KDECK_MULTI_CHILD") == "" {
 		return runMulti(cfg, kf, expanded)
 	}
 	entry, gerr := guardCommand(cfg, kf, expanded)
@@ -115,8 +115,8 @@ func Run(argv []string) int {
 	root, streams, flags := build(os.Args)
 	handler := kubectlcmd.NewDefaultPluginHandler(kubectlplugin.ValidPluginFilenamePrefixes)
 
-	// Plugins run only when no built-in or kp command matches, so a plugin
-	// can never shadow a kp command.
+	// Plugins run only when no built-in or kdeck command matches, so a plugin
+	// can never shadow a kdeck command.
 	if len(expanded) > 0 {
 		if _, _, err := root.Find(expanded); err != nil {
 			switch firstWord(expanded) {
@@ -166,7 +166,7 @@ func firstWord(args []string) string {
 
 // commandNames builds a throwaway tree to learn every command name and alias.
 func commandNames() map[string]bool {
-	root, _, _ := build([]string{"kp"})
+	root, _, _ := build([]string{"kdeck"})
 	names := map[string]bool{"help": true, "completion": true, cobra.ShellCompRequestCmd: true, cobra.ShellCompNoDescRequestCmd: true}
 	for _, c := range root.Commands() {
 		names[c.Name()] = true
@@ -186,29 +186,29 @@ func build(arguments []string) (*cobra.Command, genericiooptions.IOStreams, *gen
 		ConfigFlags:   flags,
 		IOStreams:     streams,
 	})
-	root.Use = "kp"
-	root.Short = "kubepilot: kubectl plus shortcuts, silent-failure checks, plugins and Linode LKE in one binary"
-	root.Long = `kubepilot (kp) is a single binary for running Kubernetes end to end.
+	root.Use = "kdeck"
+	root.Short = "kdeck: kubectl plus shortcuts, silent-failure checks, plugins and Linode LKE in one binary"
+	root.Long = `kdeck is a single binary for running Kubernetes end to end.
 
-  * Every kubectl command, built in and identical: kp get pods, kp apply -f x.yaml
-  * Shortcuts: kp kgpo, kp kdpol app=web, kp l pod, kp rr deploy/api (kp alias list)
-  * Context and namespace switching: kp ctx, kp ns, with "-" for previous
-  * Everyday helpers: kp pods, kp bad, kp sh, kp tail, kp neat, kp nodes, kp clean
-  * Silent-failure detection: kp silent (backups, certs, leases, webhooks, PDBs, ...)
-  * Plugins from the krew index without krew: kp plugin install view-secret
-  * Linode LKE: kp linode lke ls, kp linode lke kubeconfig ID --merge
+  * Every kubectl command, built in and identical: kdeck get pods, kdeck apply -f x.yaml
+  * Shortcuts: kdeck kgpo, kdeck kdpol app=web, kdeck l pod, kdeck rr deploy/api (kdeck alias list)
+  * Context and namespace switching: kdeck ctx, kdeck ns, with "-" for previous
+  * Everyday helpers: kdeck pods, kdeck bad, kdeck sh, kdeck tail, kdeck neat, kdeck nodes, kdeck clean
+  * Silent-failure detection: kdeck silent (backups, certs, leases, webhooks, PDBs, ...)
+  * Plugins from the krew index without krew: kdeck plugin install view-secret
+  * Linode LKE: kdeck linode lke ls, kdeck linode lke kubeconfig ID --merge
 
-Run "kp shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
+Run "kdeck shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
 
-	// Replace kubectl's "plugin" command (list only) with kp's manager.
+	// Replace kubectl's "plugin" command (list only) with kdeck's manager.
 	for _, c := range root.Commands() {
 		if c.Name() == "plugin" {
 			root.RemoveCommand(c)
 		}
 	}
 	root.AddGroup(
-		&cobra.Group{ID: "kp", Title: "kubepilot commands:"},
-		&cobra.Group{ID: "shortcuts", Title: "kubepilot shortcuts:"},
+		&cobra.Group{ID: "kdeck", Title: "kdeck commands:"},
+		&cobra.Group{ID: "shortcuts", Title: "kdeck shortcuts:"},
 	)
 	out := streams.Out
 	run := func(w io.Writer, args ...string) error { return runKubectl(w, args...) }
@@ -237,7 +237,7 @@ Run "kp shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
 	kpCmds = append(kpCmds, cloud.NewCommands(flags, out)...)
 	kpCmds = append(kpCmds, cost.NewCommand(flags, out, linode.CostPricer))
 	for _, c := range kpCmds {
-		c.GroupID = "kp"
+		c.GroupID = "kdeck"
 		root.AddCommand(c)
 	}
 	deps := quick.Deps{Flags: flags, Out: out, ErrOut: streams.ErrOut, Run: run}
@@ -252,11 +252,11 @@ Run "kp shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
 func runKubectl(out io.Writer, args ...string) error {
 	streams := genericiooptions.IOStreams{In: os.Stdin, Out: out, ErrOut: os.Stderr}
 	flags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag().WithDiscoveryBurst(300).WithDiscoveryQPS(50.0).WithWarningPrinter(streams)
-	// Carry over global flags the user gave kp (--context, -n, --kubeconfig).
+	// Carry over global flags the user gave kdeck (--context, -n, --kubeconfig).
 	full := append(globalFlags(os.Args[1:]), args...)
 	cmd := kubectlcmd.NewKubectlCommand(kubectlcmd.KubectlOptions{
 		PluginHandler: kubectlcmd.NewDefaultPluginHandler(kubectlplugin.ValidPluginFilenamePrefixes),
-		Arguments:     append([]string{"kp"}, full...),
+		Arguments:     append([]string{"kdeck"}, full...),
 		ConfigFlags:   flags,
 		IOStreams:     streams,
 	})
@@ -305,18 +305,18 @@ func addToPath(dirs ...string) {
 func aboutCommand(out io.Writer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "about",
-		Short: "kp version, embedded kubectl version, and where kp keeps its files",
+		Short: "kdeck version, embedded kubectl version, and where kdeck keeps its files",
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintf(out, "kubepilot %s (%s/%s, %s)\n", Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
+			fmt.Fprintf(out, "kdeck %s (%s/%s, %s)\n", Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 			fmt.Fprintf(out, "embedded kubectl: %s\n", kubectlVersion())
 			fmt.Fprintf(out, "home: %s\nplugins on PATH: %s\n", config.Home(), strings.Join(plugin.BinDirs(), ", "))
 		},
 	}
 }
 
-// installHelp appends kp's commands to kubectl's help output, which uses its
+// installHelp appends kdeck's commands to kubectl's help output, which uses its
 // own templates and would otherwise list only kubectl's command groups.
-func installHelp(root *cobra.Command, kp []*cobra.Command) {
+func installHelp(root *cobra.Command, kdeck []*cobra.Command) {
 	orig := root.HelpFunc()
 	root.SetHelpFunc(func(c *cobra.Command, args []string) {
 		orig(c, args)
@@ -324,16 +324,16 @@ func installHelp(root *cobra.Command, kp []*cobra.Command) {
 			return
 		}
 		w := c.OutOrStdout()
-		fmt.Fprintln(w, "\nkubepilot commands:")
-		for _, k := range kp {
+		fmt.Fprintln(w, "\nkdeck commands:")
+		for _, k := range kdeck {
 			fmt.Fprintf(w, "  %-14s %s\n", k.Name(), k.Short)
 		}
-		fmt.Fprintln(w, "\nkubepilot shortcuts:")
+		fmt.Fprintln(w, "\nkdeck shortcuts:")
 		for _, k := range root.Commands() {
 			if k.GroupID == "shortcuts" {
 				fmt.Fprintf(w, "  %-14s %s\n", k.Name(), k.Short)
 			}
 		}
-		fmt.Fprintln(w, "\nShort aliases: kp alias list   ·   Shell setup: kp shell-init zsh")
+		fmt.Fprintln(w, "\nShort aliases: kdeck alias list   ·   Shell setup: kdeck shell-init zsh")
 	})
 }

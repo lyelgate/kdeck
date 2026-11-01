@@ -6,7 +6,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/lyelgate/kubepilot/internal/cost"
+	"github.com/lyelgate/kdeck/internal/cost"
 )
 
 // CostPricer returns a node pricer for LKE nodes (they carry the

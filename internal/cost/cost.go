@@ -21,7 +21,7 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kdeck/internal/config"
 )
 
 // NodePricer returns a node's monthly price and where it came from.
@@ -144,7 +144,7 @@ func ConfigPricer(c config.CostConfig) NodePricer {
 	}
 }
 
-// NewCommand returns "kp cost". extra may add a pricer (Linode) tried
+// NewCommand returns "kdeck cost". extra may add a pricer (Linode) tried
 // before config; it returns nil when not applicable.
 func NewCommand(flags *genericclioptions.ConfigFlags, out io.Writer, extra func(ctx context.Context, nodes []corev1.Node) (NodePricer, float64)) *cobra.Command {
 	return &cobra.Command{
@@ -155,7 +155,7 @@ pods by their dominant request (the larger of CPU and memory share of the
 node). Capacity nobody requested is shown as idle.
 
 Prices: on Linode LKE they come from the Linode API automatically; elsewhere set
-them in ~/.kp/config.yaml:
+them in ~/.kdeck/config.yaml:
 
   cost:
     nodePrices: {m6i.large: 70.08, e2-standard-4: 97.09}   # by node.kubernetes.io/instance-type

@@ -1,4 +1,4 @@
-// Package match gives every kp search the same regex behaviour.
+// Package match gives every kdeck search the same regex behaviour.
 //
 // Patterns are Go regular expressions (RE2). Matching is "smart case", like
 // ripgrep: case-insensitive unless the pattern contains an upper-case

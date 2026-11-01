@@ -718,7 +718,7 @@ func checkServiceEndpoints(ctx context.Context, s *Snapshot, p *Params) ([]Findi
 			summary += "; an Ingress routes traffic here"
 		}
 		f := finding("SF-NET-001", "Service has no ready endpoints", sev, "Service", svc.ObjectMeta, summary,
-			"Compare the Service selector with the pods' labels, and check why matching pods are not Ready: kp pods -n "+svc.Namespace)
+			"Compare the Service selector with the pods' labels, and check why matching pods are not Ready: kdeck pods -n "+svc.Namespace)
 		if !since.IsZero() {
 			f.Since, f.SinceSource = tp(since), "pods' Ready condition lastTransitionTime"
 		}

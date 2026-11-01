@@ -2,7 +2,7 @@
 // Linode resources around them, using the official linodego SDK.
 //
 // The API token is taken from --token, then LINODE_TOKEN, then
-// LINODE_CLI_TOKEN, then the linode-cli config file. It is never stored by kp.
+// LINODE_CLI_TOKEN, then the linode-cli config file. It is never stored by kdeck.
 // Commands that create, change or delete resources need --yes.
 package linode
 
@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/linode/linodego"
-	"github.com/lyelgate/kubepilot/internal/kubeconfig"
+	"github.com/lyelgate/kdeck/internal/kubeconfig"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
@@ -97,7 +97,7 @@ func (o *opts) client() (*linodego.Client, error) {
 	}
 	c := linodego.NewClient(nil)
 	c.SetToken(tok)
-	c.SetUserAgent("kubepilot")
+	c.SetUserAgent("kdeck")
 	if base := os.Getenv("LINODE_URL"); base != "" {
 		c.SetBaseURL(base)
 	}
@@ -123,20 +123,20 @@ func needYes(cmd *cobra.Command, action string) error {
 	return nil
 }
 
-// NewCommand returns "kp linode".
+// NewCommand returns "kdeck linode".
 func NewCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.Command {
 	o := &opts{out: out, flags: flags}
 	cmd := &cobra.Command{
 		Use:     "linode",
 		Aliases: []string{"lin", "lnd"},
 		Short:   "Manage Linode LKE clusters, node pools, volumes and more",
-		Example: `  kp linode lke ls
-  kp linode lke kubeconfig 12345 --merge --set-current   # cluster -> kubectl in one step
-  kp linode lke pools 12345
-  kp linode lke scale 12345 67890 5 --yes
-  kp linode lke create --label dev --region us-east --version 1.33 --pool g6-standard-2:3 --yes
-  kp linode volumes ls --unattached                       # volumes billing with no node
-  kp linode cli linodes list                              # anything else, via linode-cli`,
+		Example: `  kdeck linode lke ls
+  kdeck linode lke kubeconfig 12345 --merge --set-current   # cluster -> kubectl in one step
+  kdeck linode lke pools 12345
+  kdeck linode lke scale 12345 67890 5 --yes
+  kdeck linode lke create --label dev --region us-east --version 1.33 --pool g6-standard-2:3 --yes
+  kdeck linode volumes ls --unattached                       # volumes billing with no node
+  kdeck linode cli linodes list                              # anything else, via linode-cli`,
 	}
 	cmd.PersistentFlags().StringVar(&o.token, "token", "", "Linode API token (default: LINODE_TOKEN, then linode-cli config)")
 	cmd.AddCommand(lkeCmd(o), regionsCmd(o), typesCmd(o), volumesCmd(o), nodeBalancersCmd(o), instancesCmd(o),
@@ -213,9 +213,9 @@ func lkeCmd(o *opts) *cobra.Command {
 		Use:     "kubeconfig ID",
 		Aliases: []string{"kc", "creds"},
 		Short:   "Fetch a cluster's kubeconfig: print it, write it, or merge it into ~/.kube/config",
-		Example: `  kp linode lke kubeconfig 12345                          # print to stdout
-  kp linode lke kubeconfig 12345 -f lke.yaml
-  kp linode lke kubeconfig 12345 --merge --set-current     # backup + merge + switch`,
+		Example: `  kdeck linode lke kubeconfig 12345                          # print to stdout
+  kdeck linode lke kubeconfig 12345 -f lke.yaml
+  kdeck linode lke kubeconfig 12345 --merge --set-current     # backup + merge + switch`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := atoi(args[0], "cluster ID")
@@ -252,14 +252,14 @@ func lkeCmd(o *opts) *cobra.Command {
 				}
 				fmt.Fprintf(o.out, "Merged cluster %s as context %q into %s (backup: %s).\n", k.Label, name, path, backup)
 				if setCurrent {
-					fmt.Fprintf(o.out, "Current context is now %q. Try: kp get nodes\n", name)
+					fmt.Fprintf(o.out, "Current context is now %q. Try: kdeck get nodes\n", name)
 				}
 				return nil
 			case outFile != "":
 				if err := os.WriteFile(outFile, raw, 0o600); err != nil {
 					return err
 				}
-				fmt.Fprintf(o.out, "Wrote %s. Use it with: kp --kubeconfig %s get nodes\n", outFile, outFile)
+				fmt.Fprintf(o.out, "Wrote %s. Use it with: kdeck --kubeconfig %s get nodes\n", outFile, outFile)
 				return nil
 			default:
 				_, err := o.out.Write(raw)
@@ -334,7 +334,7 @@ func lkeCmd(o *opts) *cobra.Command {
 	create := &cobra.Command{
 		Use:   "create",
 		Short: "Create an LKE cluster (needs --yes)",
-		Example: `  kp linode lke create --label dev --region us-east --version 1.33 \
+		Example: `  kdeck linode lke create --label dev --region us-east --version 1.33 \
       --pool g6-standard-2:3 --pool g6-standard-4:1 --yes`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if label == "" || region == "" || version == "" || len(pools) == 0 {
@@ -366,14 +366,14 @@ func lkeCmd(o *opts) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(o.out, "Created cluster %s (ID %d) in %s. When it is ready:\n  kp linode lke kubeconfig %d --merge --set-current\n", k.Label, k.ID, k.Region, k.ID)
+			fmt.Fprintf(o.out, "Created cluster %s (ID %d) in %s. When it is ready:\n  kdeck linode lke kubeconfig %d --merge --set-current\n", k.Label, k.ID, k.Region, k.ID)
 			return nil
 		},
 	}
 	create.Flags().StringVar(&label, "label", "", "cluster label")
-	create.Flags().StringVar(&region, "region", "", "region, e.g. us-east (see: kp linode regions)")
-	create.Flags().StringVar(&version, "version", "", "Kubernetes version (see: kp linode lke versions)")
-	create.Flags().StringArrayVar(&pools, "pool", nil, "node pool TYPE:COUNT, repeatable (see: kp linode types)")
+	create.Flags().StringVar(&region, "region", "", "region, e.g. us-east (see: kdeck linode regions)")
+	create.Flags().StringVar(&version, "version", "", "Kubernetes version (see: kdeck linode lke versions)")
+	create.Flags().StringArrayVar(&pools, "pool", nil, "node pool TYPE:COUNT, repeatable (see: kdeck linode types)")
 	create.Flags().StringSliceVar(&tags, "tag", nil, "tags")
 	create.Flags().BoolVar(&ha, "ha", false, "high-availability control plane (extra cost)")
 	create.Flags().Bool("yes", false, "confirm the change")
@@ -402,7 +402,7 @@ func lkeCmd(o *opts) *cobra.Command {
 			if err := c.DeleteLKECluster(cx, id); err != nil {
 				return err
 			}
-			fmt.Fprintf(o.out, "Deleted cluster %s (ID %d). Persistent volumes are NOT deleted; check: kp linode volumes ls --unattached\n", k.Label, id)
+			fmt.Fprintf(o.out, "Deleted cluster %s (ID %d). Persistent volumes are NOT deleted; check: kdeck linode volumes ls --unattached\n", k.Label, id)
 			return nil
 		},
 	}
@@ -624,7 +624,7 @@ func cliCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bin, err := exec.LookPath("linode-cli")
 			if err != nil {
-				return fmt.Errorf("linode-cli is not installed (pip install linode-cli); kp's own commands cover LKE, volumes, NodeBalancers and instances")
+				return fmt.Errorf("linode-cli is not installed (pip install linode-cli); kdeck's own commands cover LKE, volumes, NodeBalancers and instances")
 			}
 			c := exec.Command(bin, args...)
 			c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr

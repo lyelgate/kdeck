@@ -1,15 +1,15 @@
-# kubepilot (`kp`)
+# kdeck
 
 One binary to run Kubernetes end to end: **all of kubectl**, built in and unchanged, plus shortcuts, context and namespace switching, everyday helpers, **silent-failure detection**, a **krew-compatible plugin manager**, and **Linode LKE** management.
 
 ```text
-kp get pods                      # any kubectl command, identical behaviour
-kp kgpoa                         # shortcut: get pods --all-namespaces
-kp ctx prod && kp ns payments    # switch context and namespace ("-" = previous)
-kp bad                           # unhealthy pods, all namespaces, worst first
-kp silent                        # what is quietly broken, and since when
-kp plugin install neat           # krew plugins without krew
-kp linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubectl
+kdeck get pods                      # any kubectl command, identical behaviour
+kdeck kgpoa                         # shortcut: get pods --all-namespaces
+kdeck ctx prod && kdeck ns payments    # switch context and namespace ("-" = previous)
+kdeck bad                           # unhealthy pods, all namespaces, worst first
+kdeck silent                        # what is quietly broken, and since when
+kdeck plugin install neat           # krew plugins without krew
+kdeck linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubectl
 ```
 
 - [Install](#install)
@@ -18,13 +18,13 @@ kp linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubectl
 - [Shortcuts and aliases](#shortcuts-and-aliases)
 - [Contexts and namespaces](#contexts-and-namespaces)
 - [Everyday helpers](#everyday-helpers)
-- [Silent-failure detection](#silent-failure-detection-kp-silent)
+- [Silent-failure detection](#silent-failure-detection-kdeck-silent)
 - [Plugins (krew-compatible)](#plugins-krew-compatible)
 - [Linode LKE](#linode-lke)
 - [Regex everywhere](#regex-everywhere)
-- [One pod by regex: kplog abc](#one-pod-by-regex-kplog-abc)
-- [Stern-style logs](#stern-style-logs-kp-tail-also-kp-stern)
-- [Port-forward shortcuts](#port-forward-shortcuts-kp-pf)
+- [One pod by regex: dklog abc](#one-pod-by-regex-dklog-abc)
+- [Stern-style logs](#stern-style-logs-kdeck-tail-also-kdeck-stern)
+- [Port-forward shortcuts](#port-forward-shortcuts-kdeck-pf)
 - [Clusters on AWS, Google Cloud and Azure](#clusters-on-aws-google-cloud-and-azure)
 - [Teleport plugin](#teleport-plugin-tsh)
 - [Setup and diagnostics](#setup-and-diagnostics)
@@ -45,21 +45,21 @@ kp linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubectl
 Requires Go 1.26 or newer to build. The binary is about 65 MB (stripped) because it contains all of kubectl.
 
 ```sh
-git clone <this repo> kubepilot && cd kubepilot
-make install            # builds and copies kp to ~/go/bin (or set PREFIX)
-kp about                # version, embedded kubectl version, home directory
+git clone <this repo> kdeck && cd kdeck
+make install            # builds and copies kdeck to ~/go/bin (or set PREFIX)
+kdeck about                # version, embedded kubectl version, home directory
 ```
 
 Cross-compile release binaries for Linux, macOS and Windows (amd64 and arm64):
 
 ```sh
-make dist VERSION=v0.1.0   # writes dist/kp-<os>-<arch>[.exe]
+make dist VERSION=v0.1.0   # writes dist/kdeck-<os>-<arch>[.exe]
 ```
 
 ## Quick start
 
 ```sh
-eval "$(kp shell-init zsh)"     # adds: k, kgpo, kdpo, kctx, kns, ... and completion
+eval "$(kdeck shell-init zsh)"     # adds: k, kgpo, kdpo, kctx, kns, ... and completion
 k who                           # where am I and who does the API server think I am
 k ctx                           # pick a context (fzf if installed)
 k ns                            # pick a namespace
@@ -69,17 +69,17 @@ k silent                        # silent failures across the cluster
 
 ## kubectl, built in
 
-kp embeds `k8s.io/kubectl` (v0.37.2) as a library, so **every kubectl command, flag, output format and behaviour is identical**: `get`, `describe`, `apply`, `diff`, `edit`, `logs`, `exec`, `port-forward`, `cp`, `rollout`, `scale`, `top`, `debug`, `auth`, `kustomize`, `events`, `config`, `explain`, `wait`, and the rest. Global flags (`--context`, `-n`, `--kubeconfig`, `--as`, ...) work everywhere, including on kp's own commands.
+kdeck embeds `k8s.io/kubectl` (v0.37.2) as a library, so **every kubectl command, flag, output format and behaviour is identical**: `get`, `describe`, `apply`, `diff`, `edit`, `logs`, `exec`, `port-forward`, `cp`, `rollout`, `scale`, `top`, `debug`, `auth`, `kustomize`, `events`, `config`, `explain`, `wait`, and the rest. Global flags (`--context`, `-n`, `--kubeconfig`, `--as`, ...) work everywhere, including on kdeck's own commands.
 
-kubectl's own `~/.kube/kuberc` preferences and aliases still apply. A symlink named `kubectl` pointing at kp makes it a drop-in kubectl replacement.
+kubectl's own `~/.kube/kuberc` preferences and aliases still apply. A symlink named `kubectl` pointing at kdeck makes it a drop-in kubectl replacement.
 
 ## Shortcuts and aliases
 
-A shortcut is expanded only when the word is **not** a real command, so nothing kubectl does is ever hijacked. Order of precedence: your aliases, verb shortcuts, then combinations. See what any word does with `kp alias explain <word>`; list everything with `kp alias list` (add `--all` for every combination).
+A shortcut is expanded only when the word is **not** a real command, so nothing kubectl does is ever hijacked. Order of precedence: your aliases, verb shortcuts, then combinations. See what any word does with `kdeck alias explain <word>`; list everything with `kdeck alias list` (add `--all` for every combination).
 
 ### Combination grammar (kubectl-aliases compatible)
 
-Words follow `[k][sys]<cmd>[<resource>][<modifiers>...]`, the same grammar as [kubectl-aliases](https://github.com/ahmetb/kubectl-aliases). The leading `k` is optional inside kp (`kp gpo` = `kp kgpo`).
+Words follow `[k][sys]<cmd>[<resource>][<modifiers>...]`, the same grammar as [kubectl-aliases](https://github.com/ahmetb/kubectl-aliases). The leading `k` is optional inside kdeck (`kdeck gpo` = `kdeck kgpo`).
 
 | Part | Codes |
 | --- | --- |
@@ -128,63 +128,63 @@ Invalid combinations (two output formats, `w` with yaml/json, `all` with `sys` o
 ### Your own aliases
 
 ```sh
-kp alias set kgr 'get pods --field-selector=status.phase=Running'
-kp kgr -A
-kp alias rm kgr
+kdeck alias set kgr 'get pods --field-selector=status.phase=Running'
+kdeck kgr -A
+kdeck alias rm kgr
 ```
 
-Stored in `~/.kp/config.yaml`; they take precedence over built-in shortcuts and are included in `kp shell-init`.
+Stored in `~/.kdeck/config.yaml`; they take precedence over built-in shortcuts and are included in `kdeck shell-init`.
 
 ### Without shell aliases (busybox style)
 
-`kp shortcuts install` creates symlinks (`k`, `kgpo`, `kdpo`, ...) to the kp binary in `~/.kp/shortcuts`. Put that directory on PATH and the shortcut names work as commands in any shell, script or CI job. `--all` links every combination.
+`kdeck shortcuts install` creates symlinks (`k`, `kgpo`, `kdpo`, ...) to the kdeck binary in `~/.kdeck/shortcuts`. Put that directory on PATH and the shortcut names work as commands in any shell, script or CI job. `--all` links every combination.
 
-Debug expansion with `KP_DEBUG_ALIAS=1 kp kgpoa`.
+Debug expansion with `KDECK_DEBUG_ALIAS=1 kdeck kgpoa`.
 
 ## Contexts and namespaces
 
 | Command | Does |
 | --- | --- |
-| `kp ctx` | Pick a context with fzf; without fzf (or with `KP_NO_FZF=1`), list them |
-| `kp ctx NAME` | Switch context |
-| `kp ctx -` | Back to the previous context |
-| `kp ctx -c` | Print the current context |
-| `kp ctx rename OLD NEW` / `kp ctx rm NAME` | Rename or delete a context |
-| `kp ns` | Pick or list namespaces (from the API) |
-| `kp ns NAME` | Set the current context's namespace (`--force` if it does not exist yet) |
-| `kp ns -` | Back to the previous namespace for this context |
-| `kp ns -c` | Print the current namespace |
+| `kdeck ctx` | Pick a context with fzf; without fzf (or with `KDECK_NO_FZF=1`), list them |
+| `kdeck ctx NAME` | Switch context |
+| `kdeck ctx -` | Back to the previous context |
+| `kdeck ctx -c` | Print the current context |
+| `kdeck ctx rename OLD NEW` / `kdeck ctx rm NAME` | Rename or delete a context |
+| `kdeck ns` | Pick or list namespaces (from the API) |
+| `kdeck ns NAME` | Set the current context's namespace (`--force` if it does not exist yet) |
+| `kdeck ns -` | Back to the previous namespace for this context |
+| `kdeck ns -c` | Print the current namespace |
 
-The previous context and per-context namespace are remembered in `~/.kp/state.json`.
+The previous context and per-context namespace are remembered in `~/.kdeck/state.json`.
 
 ## Everyday helpers
 
 | Command | Does |
 | --- | --- |
-| `kp who` | Context, cluster, server, namespace, the identity the API server sees (SelfSubjectReview), server version |
-| `kp pods [regex] [-A] [-l sel] [--bad]` | Pods sorted problems first, with the real status (`CrashLoopBackOff`, `ImagePullBackOff`, `OOMKilled`) and restarts |
-| `kp bad` | Unhealthy pods in all namespaces |
-| `kp nodes` | Readiness, cordon state, kubelet version, pods used/allocatable, CPU and memory requested vs allocatable |
-| `kp sh POD-REGEX [-c c] [-- cmd]` | Shell into the best matching pod: bash if present, otherwise sh |
-| `kp tail POD-REGEX or TYPE/NAME` | Stern-style multi-pod logs (see below) |
-| `kp restart TYPE/NAME...` | Rolling restart, then wait for each rollout to finish |
-| `kp images [-A]` | Every image in use and how many pods run it |
-| `kp neat TYPE/NAME` | YAML without status, managedFields, uid, resourceVersion and last-applied, ready to re-apply |
-| `kp decode SECRET [KEY]` | A Secret's values decoded (prints secret material) |
-| `kp clean [-A] [--completed] [--yes]` | Delete Failed and Evicted pods; dry run unless `--yes` |
-| `kp each -l SEL -- CMD...` | Run a command in every running pod of a selector |
-| `kp netshoot` | Throwaway troubleshooting pod (dig, curl, tcpdump), removed on exit |
-| `kp usage [-A] [--by cpu]` | Top pods by memory or CPU |
+| `kdeck who` | Context, cluster, server, namespace, the identity the API server sees (SelfSubjectReview), server version |
+| `kdeck pods [regex] [-A] [-l sel] [--bad]` | Pods sorted problems first, with the real status (`CrashLoopBackOff`, `ImagePullBackOff`, `OOMKilled`) and restarts |
+| `kdeck bad` | Unhealthy pods in all namespaces |
+| `kdeck nodes` | Readiness, cordon state, kubelet version, pods used/allocatable, CPU and memory requested vs allocatable |
+| `kdeck sh POD-REGEX [-c c] [-- cmd]` | Shell into the best matching pod: bash if present, otherwise sh |
+| `kdeck tail POD-REGEX or TYPE/NAME` | Stern-style multi-pod logs (see below) |
+| `kdeck restart TYPE/NAME...` | Rolling restart, then wait for each rollout to finish |
+| `kdeck images [-A]` | Every image in use and how many pods run it |
+| `kdeck neat TYPE/NAME` | YAML without status, managedFields, uid, resourceVersion and last-applied, ready to re-apply |
+| `kdeck decode SECRET [KEY]` | A Secret's values decoded (prints secret material) |
+| `kdeck clean [-A] [--completed] [--yes]` | Delete Failed and Evicted pods; dry run unless `--yes` |
+| `kdeck each -l SEL -- CMD...` | Run a command in every running pod of a selector |
+| `kdeck netshoot` | Throwaway troubleshooting pod (dig, curl, tcpdump), removed on exit |
+| `kdeck usage [-A] [--by cpu]` | Top pods by memory or CPU |
 
-## Silent-failure detection (`kp silent`)
+## Silent-failure detection (`kdeck silent`)
 
 Finds failures that produce **no crash and no alert**: backups that stopped succeeding, certificates about to expire, controllers that stopped renewing their lease, webhooks and Services with nothing behind them, HPAs frozen because metrics are down, PDBs that will block every drain. Every finding has a severity, **since when** (taken from the API, never guessed; "unknown" when the API does not record it), the evidence, and a next step. Read-only.
 
 ```text
-$ kp silent
+$ kdeck silent
 SEVERITY  CHECK           OBJECT                                        SINCE      SUMMARY
 critical  SF-CRON-001     broken/CronJob/nightly-backup                 2m24s ago  never succeeded; 3 scheduled runs since creation
-critical  SF-WEBHOOK-001  ValidatingWebhookConfiguration/kp-e2e-policy  unknown    webhook strict.example.com: Service broken/deleted-webhook does not exist; failurePolicy=Fail: matching API requests are rejected
+critical  SF-WEBHOOK-001  ValidatingWebhookConfiguration/kdeck-e2e-policy  unknown    webhook strict.example.com: Service broken/deleted-webhook does not exist; failurePolicy=Fail: matching API requests are rejected
 high      SF-LEASE-001    broken/Lease/ghost-controller                 62m ago    lease not renewed for 62m (duration 15s); the holder stopped renewing recently
 medium    SF-PDB-001      broken/PodDisruptionBudget/web                2m24s ago  allows 0 disruptions; node drains and upgrades will block
 ...
@@ -223,9 +223,9 @@ medium    SF-PDB-001      broken/PodDisruptionBudget/web                2m24s ag
 | SF-GITOPS-001 | gitops | Argo CD apps Degraded/OutOfSync; Flux Kustomizations, HelmReleases, GitRepositories not Ready or suspended | condition transition |
 | SF-API-002 | control | Deprecated APIs still being called (API server metrics), high when removed in the next minor | - |
 
-**In-cluster mode:** `kp silent serve` re-runs the checks every interval and serves `/metrics` (`silent_finding`, `silent_finding_since_timestamp_seconds`, `silent_findings_total`, `silent_check_skipped`, `silent_last_run_timestamp_seconds`), `/findings` and `/healthz`; undated findings get a first-seen time. `kp silent manifest [--sensitive] [--prometheus-rule] | kubectl apply -f -` installs it with read-only RBAC.
+**In-cluster mode:** `kdeck silent serve` re-runs the checks every interval and serves `/metrics` (`silent_finding`, `silent_finding_since_timestamp_seconds`, `silent_findings_total`, `silent_check_skipped`, `silent_last_run_timestamp_seconds`), `/findings` and `/healthz`; undated findings get a first-seen time. `kdeck silent manifest [--sensitive] [--prometheus-rule] | kubectl apply -f -` installs it with read-only RBAC.
 
-`kp silent --list` prints the catalogue. Checks whose API is not installed (for example Velero) are listed with `--explain-skipped`.
+`kdeck silent --list` prints the catalogue. Checks whose API is not installed (for example Velero) are listed with `--explain-skipped`.
 
 ### Flags
 
@@ -242,12 +242,12 @@ medium    SF-PDB-001      broken/PodDisruptionBudget/web                2m24s ag
 | `--show-suppressed` | off | Include suppressed findings |
 | `--explain-skipped` | off | List checks that could not run and why |
 
-CI example: `kp silent -o json --fail-on high > silent.json`.
+CI example: `kdeck silent -o json --fail-on high > silent.json`.
 
 ### Tuning and suppressing
 
 ```yaml
-# ~/.kp/config.yaml
+# ~/.kdeck/config.yaml
 silent:
   checks:
     SF-CRON-001: {thresholds: {missedRuns: 5}}
@@ -275,40 +275,40 @@ Thresholds per check: `graceMinutes` (NET-001, HPA-001, PDB-001, FINALIZER-001, 
 
 ## Plugins (krew-compatible)
 
-kp reads the [krew index](https://github.com/kubernetes-sigs/krew-index) directly; krew itself is not needed. Plugins install into `~/.kp` and run as `kp <name>`. Plugins installed earlier with krew (`~/.krew/bin`) keep working.
+kdeck reads the [krew index](https://github.com/kubernetes-sigs/krew-index) directly; krew itself is not needed. Plugins install into `~/.kdeck` and run as `kdeck <name>`. Plugins installed earlier with krew (`~/.krew/bin`) keep working.
 
 | Command | Does |
 | --- | --- |
-| `kp plugin update` | Download the index |
-| `kp plugin search [query]` | Search names and descriptions |
-| `kp plugin info NAME` | Version, homepage, platforms, caveats |
-| `kp plugin install NAME...` | Download, **verify sha256**, unpack, link `kubectl-<name>` |
-| `kp plugin list` | kp-managed, krew-managed and any `kubectl-*` on PATH |
-| `kp plugin upgrade [NAME...]` | Upgrade to the index version |
-| `kp plugin uninstall NAME...` | Remove |
+| `kdeck plugin update` | Download the index |
+| `kdeck plugin search [query]` | Search names and descriptions |
+| `kdeck plugin info NAME` | Version, homepage, platforms, caveats |
+| `kdeck plugin install NAME...` | Download, **verify sha256**, unpack, link `kubectl-<name>` |
+| `kdeck plugin list` | kdeck-managed, krew-managed and any `kubectl-*` on PATH |
+| `kdeck plugin upgrade [NAME...]` | Upgrade to the index version |
+| `kdeck plugin uninstall NAME...` | Remove |
 
-Plugins only run when no built-in or kp command matches, so a plugin can never shadow a kp command. Archives are checked for path traversal before unpacking.
+Plugins only run when no built-in or kdeck command matches, so a plugin can never shadow a kdeck command. Archives are checked for path traversal before unpacking.
 
 ## Linode LKE
 
-Uses the official `linodego` SDK. The token comes from `--token`, `LINODE_TOKEN`, `LINODE_CLI_TOKEN`, or the default user in the linode-cli config file. kp never stores it. Anything that creates, changes or deletes resources needs `--yes`.
+Uses the official `linodego` SDK. The token comes from `--token`, `LINODE_TOKEN`, `LINODE_CLI_TOKEN`, or the default user in the linode-cli config file. kdeck never stores it. Anything that creates, changes or deletes resources needs `--yes`.
 
 | Command | Does |
 | --- | --- |
-| `kp linode lke ls` | Clusters: ID, label, region, version, status, HA, tags |
-| `kp linode lke get ID` | One cluster plus node pools |
-| `kp linode lke kubeconfig ID` | Print the kubeconfig; `-f FILE` to write it; `--merge [--set-current] [--context-name]` to merge into your kubeconfig (backup first, entries renamed to `lke-<label>` so clusters never collide) |
-| `kp linode lke pools ID` | Node pools: type, ready/count, autoscaler range |
-| `kp linode lke scale ID POOL COUNT --yes` | Resize a pool |
-| `kp linode lke create --label --region --version --pool TYPE:COUNT [--ha] --yes` | Create a cluster |
-| `kp linode lke delete ID --yes` | Delete a cluster (warns that volumes remain) |
-| `kp linode lke versions` | Kubernetes versions offered |
-| `kp linode regions` / `types` | Regions (with LKE availability) and node plans with prices |
-| `kp linode volumes ls [--unattached]` | Volumes; `--unattached` shows ones billing with no node |
-| `kp linode nodebalancers` / `instances` | NodeBalancers (from LoadBalancer Services) and instances |
-| `kp linode cli ARGS...` | Anything else, passed to `linode-cli` if installed |
+| `kdeck linode lke ls` | Clusters: ID, label, region, version, status, HA, tags |
+| `kdeck linode lke get ID` | One cluster plus node pools |
+| `kdeck linode lke kubeconfig ID` | Print the kubeconfig; `-f FILE` to write it; `--merge [--set-current] [--context-name]` to merge into your kubeconfig (backup first, entries renamed to `lke-<label>` so clusters never collide) |
+| `kdeck linode lke pools ID` | Node pools: type, ready/count, autoscaler range |
+| `kdeck linode lke scale ID POOL COUNT --yes` | Resize a pool |
+| `kdeck linode lke create --label --region --version --pool TYPE:COUNT [--ha] --yes` | Create a cluster |
+| `kdeck linode lke delete ID --yes` | Delete a cluster (warns that volumes remain) |
+| `kdeck linode lke versions` | Kubernetes versions offered |
+| `kdeck linode regions` / `types` | Regions (with LKE availability) and node plans with prices |
+| `kdeck linode volumes ls [--unattached]` | Volumes; `--unattached` shows ones billing with no node |
+| `kdeck linode nodebalancers` / `instances` | NodeBalancers (from LoadBalancer Services) and instances |
+| `kdeck linode cli ARGS...` | Anything else, passed to `linode-cli` if installed |
 
-From zero to kubectl in one line: `kp linode lke kubeconfig 12345 --merge --set-current && kp get nodes`.
+From zero to kubectl in one line: `kdeck linode lke kubeconfig 12345 --merge --set-current && kdeck get nodes`.
 
 ## Regex everywhere
 
@@ -316,99 +316,99 @@ Every name argument is a **regular expression with smart case**: lower-case patt
 
 | Where | Regex applies to |
 | --- | --- |
-| `kp log/desc/img/po/pod/sh/pf/tail` | pod (or Service) names; containers with `-c` |
-| `kp pods`, `kp nodes`, `kp images` | names, node names, image references |
-| `kp find REGEX [kinds]` | names (and labels with `--labels`) across many kinds, any CRD |
-| `kp restart`, `kp each`, `kp clean --match` | workload / pod names |
-| `kp ctx`, `kp ns`, `kp tu`, `kp eks/gke/aks use` | context, namespace, Teleport and cloud cluster names (exact name wins) |
-| `kp silent -m`, `kp plugin search`, `kp alias list` | findings, plugins, shortcuts |
-| `kp tail -i/-e` | log lines to include / exclude |
+| `kdeck log/desc/img/po/pod/sh/pf/tail` | pod (or Service) names; containers with `-c` |
+| `kdeck pods`, `kdeck nodes`, `kdeck images` | names, node names, image references |
+| `kdeck find REGEX [kinds]` | names (and labels with `--labels`) across many kinds, any CRD |
+| `kdeck restart`, `kdeck each`, `kdeck clean --match` | workload / pod names |
+| `kdeck ctx`, `kdeck ns`, `kdeck tu`, `kdeck eks/gke/aks use` | context, namespace, Teleport and cloud cluster names (exact name wins) |
+| `kdeck silent -m`, `kdeck plugin search`, `kdeck alias list` | findings, plugins, shortcuts |
+| `kdeck tail -i/-e` | log lines to include / exclude |
 
-## One pod by regex: `kplog abc`
+## One pod by regex: `dklog abc`
 
 These commands pick **one pod**: an exact name wins, otherwise the best running and ready match; with several matches fzf opens on a terminal, otherwise the best one is used and the rest are named. `--all` acts on every match. Pod names cannot contain `_` (Kubernetes allows lower-case letters, digits, `-` and `.`).
 
-| Command | kp-prefixed name | Does |
+| Command | Short name (`dk` = deck) | Does |
 | --- | --- | --- |
-| `kp log abc [-f] [-p] [-c re] [--all]` | `kplog` | Logs (all containers prefixed; `--all` = every match, stern-style) |
-| `kp desc abc [--all]` | `kpdesc` | `kubectl describe pod` |
-| `kp img abc [--all]` | `kpimg` | Each container's image and the digest actually running |
-| `kp po abc [-o yaml]` | `kppo` | `kubectl get pods -o wide` for every match |
-| `kp pod abc` | `kppod` | Detail card: node, IP, owner, QoS, containers, restarts, last crash, recent warnings |
-| `kp sh abc [-- cmd]` | `kpsh` | Shell into the best match |
-| `kp pf abc [ports]` | `kppf` | Port-forward (below) |
-| `kp tail abc` | `kptail` | Stern-style logs (below) |
-| `kp ns re` / `kp ctx re` | `kpns` / `kpctx` | Switch namespace / context |
+| `kdeck log abc [-f] [-p] [-c re] [--all]` | `dklog` | Logs (all containers prefixed; `--all` = every match, stern-style) |
+| `kdeck desc abc [--all]` | `dkdesc` | `kubectl describe pod` |
+| `kdeck img abc [--all]` | `dkimg` | Each container's image and the digest actually running |
+| `kdeck po abc [-o yaml]` | `dkpo` | `kubectl get pods -o wide` for every match |
+| `kdeck pod abc` | `dkpod` | Detail card: node, IP, owner, QoS, containers, restarts, last crash, recent warnings |
+| `kdeck sh abc [-- cmd]` | `dksh` | Shell into the best match |
+| `kdeck pf abc [ports]` | `dkpf` | Port-forward (below) |
+| `kdeck tail abc` | `dktail` | Stern-style logs (below) |
+| `kdeck ns re` / `kdeck ctx re` | `dkns` / `dkctx` | Switch namespace / context |
 
-`kp shortcuts install` creates all of these as real commands (symlinks on macOS and Linux, `.cmd` shims on Windows), so `kplog abc` works directly in any shell.
+`kdeck shortcuts install` creates all of these as real commands (symlinks on macOS and Linux, `.cmd` shims on Windows), so `dklog abc` works directly in any shell.
 
-## Stern-style logs: `kp tail` (also `kp stern`)
+## Stern-style logs: `kdeck tail` (also `kdeck stern`)
 
 Built in, no stern binary needed. Follows every pod matching a regex and every container matching `-c`; in follow mode it watches the API, so pods from scale-ups and rollouts join automatically and restarted containers resume without repeating history. Colour per pod.
 
 ```sh
-kp tail api                        # every pod with "api" in the name
-kp tail '^web-' -c nginx           # nginx containers only
-kp tail . -A -i error -e healthz   # all pods, lines with "error", without "healthz"
-kp tail deploy/api --since 10m     # pods of a workload
-kp tail api -l tier=backend -t     # regex + selector, with timestamps
+kdeck tail api                        # every pod with "api" in the name
+kdeck tail '^web-' -c nginx           # nginx containers only
+kdeck tail . -A -i error -e healthz   # all pods, lines with "error", without "healthz"
+kdeck tail deploy/api --since 10m     # pods of a workload
+kdeck tail api -l tier=backend -t     # regex + selector, with timestamps
 ```
 
 Flags: `-c` container regex, `-E` exclude pods, `-i`/`-e` include/exclude lines (repeatable), `-l` selector, `--since`, `--tail`, `--no-follow`, `-t`, `--init-containers`, `--color auto|always|never`, `-A`.
 
-## Port-forward shortcuts: `kp pf`
+## Port-forward shortcuts: `kdeck pf`
 
 ```sh
-kp pf grafana              # finds svc/grafana, forwards all its ports (80 -> localhost:8080)
-kp pf api 9000:8080        # Service matching "api", explicit ports
-kp pf '^web-0$' --pod      # a pod instead of a Service
-kp pf deploy/api 8080      # TYPE/NAME goes straight to kubectl
-kp pf grafana --address 0.0.0.0
+kdeck pf grafana              # finds svc/grafana, forwards all its ports (80 -> localhost:8080)
+kdeck pf api 9000:8080        # Service matching "api", explicit ports
+kdeck pf '^web-0$' --pod      # a pod instead of a Service
+kdeck pf deploy/api 8080      # TYPE/NAME goes straight to kubectl
+kdeck pf grafana --address 0.0.0.0
 ```
 
 Services are preferred over pods; ports below 1024 map to +8000 locally so no root is needed; several matches open the picker or are listed.
 
 ## Clusters on AWS, Google Cloud and Azure
 
-kp uses each provider's official CLI, so your existing logins, SSO and profiles work. Connecting backs up the kubeconfig first; `--name` gives the context a short name.
+kdeck uses each provider's official CLI, so your existing logins, SSO and profiles work. Connecting backs up the kubeconfig first; `--name` gives the context a short name.
 
 | Command | Uses | Does |
 | --- | --- | --- |
-| `kp eks ls [re] [--region] [--profile]` | `aws` | List EKS clusters |
-| `kp eks use re [--region] [--name prod]` | `aws eks update-kubeconfig` | Connect and switch |
-| `kp gke ls [re] [--project]` | `gcloud` | List GKE clusters |
-| `kp gke use re [--name]` | `gcloud container clusters get-credentials` | Connect (needs `gke-gcloud-auth-plugin`) |
-| `kp aks ls [re] [--subscription]` | `az` | List AKS clusters |
-| `kp aks use re [--name] [--kubelogin]` | `az aks get-credentials` (+ `kubelogin convert-kubeconfig -l azurecli`) | Connect, Entra ID clusters too |
-| `kp ctx import FILE [--name] [--set-current]` | - | Merge any kubeconfig (backup, no overwrites) |
+| `kdeck eks ls [re] [--region] [--profile]` | `aws` | List EKS clusters |
+| `kdeck eks use re [--region] [--name prod]` | `aws eks update-kubeconfig` | Connect and switch |
+| `kdeck gke ls [re] [--project]` | `gcloud` | List GKE clusters |
+| `kdeck gke use re [--name]` | `gcloud container clusters get-credentials` | Connect (needs `gke-gcloud-auth-plugin`) |
+| `kdeck aks ls [re] [--subscription]` | `az` | List AKS clusters |
+| `kdeck aks use re [--name] [--kubelogin]` | `az aks get-credentials` (+ `kubelogin convert-kubeconfig -l azurecli`) | Connect, Entra ID clusters too |
+| `kdeck ctx import FILE [--name] [--set-current]` | - | Merge any kubeconfig (backup, no overwrites) |
 
-Credential plugins in kubeconfigs (`aws`, `gke-gcloud-auth-plugin`, `kubelogin`, `tsh`) work unchanged because kp uses client-go; `kp doctor` reports any that are missing.
+Credential plugins in kubeconfigs (`aws`, `gke-gcloud-auth-plugin`, `kubelogin`, `tsh`) work unchanged because kdeck uses client-go; `kdeck doctor` reports any that are missing.
 
 ## Teleport plugin (`tsh`)
 
 Set up once; it asks only for the proxy:
 
 ```sh
-kp setup                    # or: kp tsh setup tp.example.com:443
+kdeck setup                    # or: kdeck tsh setup tp.example.com:443
 ```
 
 Then:
 
 | Short | Full | Does |
 | --- | --- | --- |
-| `kp tl` | `kp tsh login` | `tsh login --proxy=<saved>` (plus saved `--user` / `--auth`) |
-| `kp tls [re]` | `kp tsh ls` | Kubernetes clusters you can reach, filtered by regex (logs in first if needed) |
-| `kp tu re` | `kp tsh use` | `tsh kube login <match>` and switch kubectl (logs in first if needed) |
-| `kp ts` | `kp tsh status` | Session status |
-| `kp tlo` | `kp tsh logout` | Log out |
-| | `kp tsh -- ARGS` | Anything else, passed to tsh |
+| `kdeck tl` | `kdeck tsh login` | `tsh login --proxy=<saved>` (plus saved `--user` / `--auth`) |
+| `kdeck tls [re]` | `kdeck tsh ls` | Kubernetes clusters you can reach, filtered by regex (logs in first if needed) |
+| `kdeck tu re` | `kdeck tsh use` | `tsh kube login <match>` and switch kubectl (logs in first if needed) |
+| `kdeck ts` | `kdeck tsh status` | Session status |
+| `kdeck tlo` | `kdeck tsh logout` | Log out |
+| | `kdeck tsh -- ARGS` | Anything else, passed to tsh |
 
-kp wraps the official tsh binary (install from goteleport.com/download, `brew install teleport`, or `winget install Teleport.Teleport`) and never handles Teleport credentials itself.
+kdeck wraps the official tsh binary (install from goteleport.com/download, `brew install teleport`, or `winget install Teleport.Teleport`) and never handles Teleport credentials itself.
 
 ## Setup and diagnostics
 
-- `kp setup`: one question (Teleport proxy, Enter to skip), then the tools found and the exact line for your shell; `--write-rc` appends it for bash, zsh or fish.
-- `kp doctor [--all-contexts]`: kubeconfig, auth type and credential plugin per context, cluster reachability, kubectl/cluster version skew (warns outside ±1 minor), tools, Teleport session.
+- `kdeck setup`: one question (Teleport proxy, Enter to skip), then the tools found and the exact line for your shell; `--write-rc` appends it for bash, zsh or fish.
+- `kdeck doctor [--all-contexts]`: kubeconfig, auth type and credential plugin per context, cluster reachability, kubectl/cluster version skew (warns outside ±1 minor), tools, Teleport session.
 
 ## Platforms
 
@@ -418,94 +418,94 @@ kp wraps the official tsh binary (install from goteleport.com/download, `brew in
 | Linux, including WSL | amd64, arm64 | bash, zsh, fish, PowerShell |
 | Windows | amd64, arm64 | PowerShell, cmd.exe |
 
-`make dist` builds all six binaries. On Windows, `kp shortcuts install` writes `.cmd` shims (no admin rights needed) and `kp shell-init powershell` / `kp shell-init cmd` generate PowerShell functions or doskey macros.
+`make dist` builds all six binaries. On Windows, `kdeck shortcuts install` writes `.cmd` shims (no admin rights needed) and `kdeck shell-init powershell` / `kdeck shell-init cmd` generate PowerShell functions or doskey macros.
 
 ## Production safety
 
 | Setting | Effect |
 | --- | --- |
-| `kp safety prod add 'prod\|live'` | Writes (`apply`, `delete`, `scale`, `drain`, `rollout restart`, `edit`, `kp restart`, `kp clean --yes`, ...) on matching contexts need the context name typed back. `apply` shows `kubectl diff` first (`kp safety diff off` to skip) |
-| `kp safety ro add '^audit-'` | Matching contexts refuse writes **and** exec (`exec`, `kp sh`, `kp each`, `kp node-sh`) |
-| `kp --ro ...` or `KP_RO=1` | One-off read-only |
-| `KP_CONFIRM_CONTEXT=<ctx>` | Confirms production writes in scripts and CI |
-| `kp history [regex] [--undo]` | Every write and exec run through kp, with exit code and an undo command where known (scale back to the previous replica count, rollout undo, uncordon) |
+| `kdeck safety prod add 'prod\|live'` | Writes (`apply`, `delete`, `scale`, `drain`, `rollout restart`, `edit`, `kdeck restart`, `kdeck clean --yes`, ...) on matching contexts need the context name typed back. `apply` shows `kubectl diff` first (`kdeck safety diff off` to skip) |
+| `kdeck safety ro add '^audit-'` | Matching contexts refuse writes **and** exec (`exec`, `kdeck sh`, `kdeck each`, `kdeck node-sh`) |
+| `kdeck --ro ...` or `KDECK_RO=1` | One-off read-only |
+| `KDECK_CONFIRM_CONTEXT=<ctx>` | Confirms production writes in scripts and CI |
+| `kdeck history [regex] [--undo]` | Every write and exec run through kdeck, with exit code and an undo command where known (scale back to the previous replica count, rollout undo, uncordon) |
 
-`--dry-run`, `diff` and `--help` always pass. `kp safety` lists every context with its protection.
+`--dry-run`, `diff` and `--help` always pass. `kdeck safety` lists every context with its protection.
 
 ## Many clusters
 
 | Command | Does |
 | --- | --- |
-| `kp -C 'prod-.*' get pods -l app=api` | Runs on every matching context in parallel and merges output with a CONTEXT column; works for kp commands too (`kp -C . silent`, `kp -C . bad`). Writes across contexts need the count typed (or `KP_CONFIRM_MULTI=N`); any read-only context in the set blocks writes |
-| `kh prod` (`kp here`) | This terminal only switches context (`-n ns` too); other terminals keep theirs. `kh --off` returns to the shared kubeconfig |
-| `kp prompt` | `ctx/ns` for your prompt: red on production, blue when read-only; reads only the kubeconfig, so it is fast |
-| `kp profile save NAME [--teleport CLUSTER]` / `kp profile NAME` | Teleport login, context and namespace in one step |
-| `kp compare A B` (`ctx:ns`) | Drift in images, replicas, requests/limits, env names, config refs and volumes between two namespaces or clusters; `-m` to filter workloads |
+| `kdeck -C 'prod-.*' get pods -l app=api` | Runs on every matching context in parallel and merges output with a CONTEXT column; works for kdeck commands too (`kdeck -C . silent`, `kdeck -C . bad`). Writes across contexts need the count typed (or `KDECK_CONFIRM_MULTI=N`); any read-only context in the set blocks writes |
+| `kh prod` (`kdeck here`) | This terminal only switches context (`-n ns` too); other terminals keep theirs. `kh --off` returns to the shared kubeconfig |
+| `kdeck prompt` | `ctx/ns` for your prompt: red on production, blue when read-only; reads only the kubeconfig, so it is fast |
+| `kdeck profile save NAME [--teleport CLUSTER]` / `kdeck profile NAME` | Teleport login, context and namespace in one step |
+| `kdeck compare A B` (`ctx:ns`) | Drift in images, replicas, requests/limits, env names, config refs and volumes between two namespaces or clusters; `-m` to filter workloads |
 
 ## Troubleshooting
 
 | Command | Does |
 | --- | --- |
-| `kp why POD-REGEX` | Plain-language diagnosis with evidence and next steps: unschedulable (reason), image pull errors (not found / unauthorized / network), crash loops with exit-code meaning (137 OOM, 127, 143 ...), missing config, failing readiness probes, stuck mounts, eviction, stuck termination |
-| `kp trace URL` | Ingress or HTTPRoute → TLS secret → Service port → endpoints → pods → container port, marking the first broken link |
-| `kp fit [regex] [-A] [--problems]` | Live usage vs requests and limits (metrics-server): OOM risk, CPU throttling, over/under-requested, missing requests |
-| `kp timeline deploy/api [--since 30m]` | Rollouts, pod creation, restarts with exit codes and events of a workload, its ReplicaSets and pods, in time order |
-| `kp node-sh NODE-REGEX` | Root shell on a node via `kubectl debug` (host at `/`), debug pod deleted afterwards |
-| `kp edit-secret NAME` | Secret values decoded in your editor, re-encoded on save, temp file wiped |
+| `kdeck why POD-REGEX` | Plain-language diagnosis with evidence and next steps: unschedulable (reason), image pull errors (not found / unauthorized / network), crash loops with exit-code meaning (137 OOM, 127, 143 ...), missing config, failing readiness probes, stuck mounts, eviction, stuck termination |
+| `kdeck trace URL` | Ingress or HTTPRoute → TLS secret → Service port → endpoints → pods → container port, marking the first broken link |
+| `kdeck fit [regex] [-A] [--problems]` | Live usage vs requests and limits (metrics-server): OOM risk, CPU throttling, over/under-requested, missing requests |
+| `kdeck timeline deploy/api [--since 30m]` | Rollouts, pod creation, restarts with exit codes and events of a workload, its ReplicaSets and pods, in time order |
+| `kdeck node-sh NODE-REGEX` | Root shell on a node via `kubectl debug` (host at `/`), debug pod deleted afterwards |
+| `kdeck edit-secret NAME` | Secret values decoded in your editor, re-encoded on save, temp file wiped |
 
 ## Cost
 
-- `kp cost`: monthly estimate per namespace on any cluster. Node prices are shared by each pod's dominant request (CPU or memory share of the node); unrequested capacity shows as idle; PVCs add storage. On LKE prices come from the Linode API; elsewhere set `cost.nodePrices` (by `node.kubernetes.io/instance-type`), `cost.defaultNodePrice` and `cost.storagePerGB`.
-- `kp linode cost [re]`: list-price cost per LKE cluster (nodes, HA control plane, attached volumes) plus unattached volumes and NodeBalancers, using region prices.
-- `kp linode leftovers [--k8s-contexts re]`: unattached volumes and NodeBalancers that no LoadBalancer Service in the given contexts points at, with monthly cost.
-- `kp linode lke upgrade ID [--version] --yes`, `kp linode lke recycle ID [--pool] --yes`, `kp linode lke autoscale ID POOL --min --max --yes`, `kp linode firewalls`.
+- `kdeck cost`: monthly estimate per namespace on any cluster. Node prices are shared by each pod's dominant request (CPU or memory share of the node); unrequested capacity shows as idle; PVCs add storage. On LKE prices come from the Linode API; elsewhere set `cost.nodePrices` (by `node.kubernetes.io/instance-type`), `cost.defaultNodePrice` and `cost.storagePerGB`.
+- `kdeck linode cost [re]`: list-price cost per LKE cluster (nodes, HA control plane, attached volumes) plus unattached volumes and NodeBalancers, using region prices.
+- `kdeck linode leftovers [--k8s-contexts re]`: unattached volumes and NodeBalancers that no LoadBalancer Service in the given contexts points at, with monthly cost.
+- `kdeck linode lke upgrade ID [--version] --yes`, `kdeck linode lke recycle ID [--pool] --yes`, `kdeck linode lke autoscale ID POOL --min --max --yes`, `kdeck linode firewalls`.
 
 ## Install, update, settings
 
 | Platform | Command |
 | --- | --- |
-| Linux, macOS | `curl -fsSL https://raw.githubusercontent.com/lyelgate/kubepilot/main/install.sh \| sh` (checksum-verified) |
-| Windows | `irm https://raw.githubusercontent.com/lyelgate/kubepilot/main/install.ps1 \| iex` |
-| Homebrew / Scoop | `brew install lyelgate/tap/kp` / `scoop bucket add lyelgate https://github.com/lyelgate/scoop-bucket; scoop install kp` |
+| Linux, macOS | `curl -fsSL https://raw.githubusercontent.com/lyelgate/kdeck/main/install.sh \| sh` (checksum-verified) |
+| Windows | `irm https://raw.githubusercontent.com/lyelgate/kdeck/main/install.ps1 \| iex` |
+| Homebrew / Scoop | `brew install lyelgate/tap/kdeck` / `scoop bucket add lyelgate https://github.com/lyelgate/scoop-bucket; scoop install kdeck` |
 | Linux packages | `.deb`, `.rpm`, `.apk` on each release |
-| Container | `ghcr.io/lyelgate/kubepilot` (in-cluster `kp silent serve`) |
+| Container | `ghcr.io/lyelgate/kdeck` (in-cluster `kdeck silent serve`) |
 
-`kp update [--check]` replaces the binary with the latest release after verifying its sha256 (Homebrew installs: `brew upgrade kp`). `kp settings export > kp.yaml` and `kp settings import kp.yaml` carry aliases, safety rules, profiles, Teleport, silent tuning and cost prices to another machine; kp stores no tokens.
+`kdeck update [--check]` replaces the binary with the latest release after verifying its sha256 (Homebrew installs: `brew upgrade kdeck`). `kdeck settings export > kdeck.yaml` and `kdeck settings import kdeck.yaml` carry aliases, safety rules, profiles, Teleport, silent tuning and cost prices to another machine; kdeck stores no tokens.
 
 Releases are built by `.goreleaser.yaml` on a `v*` tag (`.github/workflows/release.yml`): six binaries, archives, checksums, SBOM, cosign keyless signatures, Homebrew, Scoop, Linux packages and the image. CI (`.github/workflows/ci.yml`) runs unit tests on Linux, macOS and Windows, cross-builds every target, and runs `hack/e2e.sh` on kind. Renovate groups the `k8s.io/*` modules so kubectl updates land as one PR.
 
 ## Shell integration
 
 ```sh
-echo 'eval "$(kp shell-init zsh)"'  >> ~/.zshrc                 # zsh
-echo 'eval "$(kp shell-init bash)"' >> ~/.bashrc                # bash
-echo 'kp shell-init fish | source'  >> ~/.config/fish/config.fish
-Add-Content $PROFILE 'kp shell-init powershell | Out-String | Invoke-Expression'   # PowerShell
-kp shell-init cmd > "%USERPROFILE%\kp-macros.cmd"                                  # cmd.exe (see file)
+echo 'eval "$(kdeck shell-init zsh)"'  >> ~/.zshrc                 # zsh
+echo 'eval "$(kdeck shell-init bash)"' >> ~/.bashrc                # bash
+echo 'kdeck shell-init fish | source'  >> ~/.config/fish/config.fish
+Add-Content $PROFILE 'kdeck shell-init powershell | Out-String | Invoke-Expression'   # PowerShell
+kdeck shell-init cmd > "%USERPROFILE%\kdeck-macros.cmd"                                  # cmd.exe (see file)
 ```
 
-Adds `k` for kp (`--name` to change it), helpers (`kctx`, `kns`, `kwho`, `kbad`, `ksf`, `ksh`, `ktail`, `kneat`), 62 common combinations (`--all` for about 950), your own aliases, and completion for `kp` and `k`. Completion alone: `kp completion bash|zsh|fish|powershell`.
+Adds `k` for kdeck (`--name` to change it), helpers (`kctx`, `kns`, `kwho`, `kbad`, `ksf`, `ksh`, `ktail`, `kneat`), 62 common combinations (`--all` for about 950), your own aliases, and completion for `kdeck` and `k`. Completion alone: `kdeck completion bash|zsh|fish|powershell`.
 
 ## Configuration reference
 
-Everything lives in `~/.kp` (override with `KP_HOME`):
+Everything lives in `~/.kdeck` (override with `KDECK_HOME`):
 
 | Path | Content |
 | --- | --- |
 | `config.yaml` | `aliases`, `silent` (checks, thresholds, suppressions, excludeNamespaces, backupLabels), `linode.defaultRegion` |
 | `state.json` | Previous context and per-context namespace |
-| `bin/` | Plugin links (`kubectl-<name>`), added to PATH when kp runs |
+| `bin/` | Plugin links (`kubectl-<name>`), added to PATH when kdeck runs |
 | `store/`, `receipts/`, `index/` | Installed plugin files, install records, krew index copy |
-| `shortcuts/` | Symlinks created by `kp shortcuts install` |
+| `shortcuts/` | Symlinks created by `kdeck shortcuts install` |
 
-Environment: `KP_HOME`, `KP_NO_FZF=1` (never open the picker), `KP_DEBUG_ALIAS=1` (print expansions), `LINODE_TOKEN`, `LINODE_URL` (alternative API endpoint, used by tests).
+Environment: `KDECK_HOME`, `KDECK_NO_FZF=1` (never open the picker), `KDECK_DEBUG_ALIAS=1` (print expansions), `LINODE_TOKEN`, `LINODE_URL` (alternative API endpoint, used by tests).
 
 ## Security notes
 
-- `kp silent` is read-only. It reads Secrets only with `--sensitive`, parses certificates in memory, and never prints secret data. It needs only `get`/`list` permissions; forbidden checks are skipped with a reason instead of failing the run.
-- `kp decode` prints secret material by design. `kp clean` deletes only with `--yes`. Linode changes need `--yes`.
+- `kdeck silent` is read-only. It reads Secrets only with `--sensitive`, parses certificates in memory, and never prints secret data. It needs only `get`/`list` permissions; forbidden checks are skipped with a reason instead of failing the run.
+- `kdeck decode` prints secret material by design. `kdeck clean` deletes only with `--yes`. Linode changes need `--yes`.
 - Plugin downloads are verified against the index sha256 and refused on mismatch.
-- `kp linode lke kubeconfig --merge` backs up your kubeconfig before writing (`<file>.kp-backup-<timestamp>`).
+- `kdeck linode lke kubeconfig --merge` backs up your kubeconfig before writing (`<file>.kdeck-backup-<timestamp>`).
 - Object names are stripped of control characters before printing.
 
 ## Development
@@ -515,20 +515,20 @@ make test     # unit tests: shortcut grammar, all checks (fake clientset), suppr
               # cron/timezone maths, certificates, kubeconfig merge, krew platform
               # matching and archive safety, neat
 make vet
-make build    # bin/kp
+make build    # bin/kdeck
 ```
 
 End-to-end test on a throwaway kind cluster, which never touches your kubeconfig:
 
 ```sh
-kind create cluster --name kp-e2e --kubeconfig /tmp/kp-e2e.kubeconfig
-export KUBECONFIG=/tmp/kp-e2e.kubeconfig KP_HOME=/tmp/kp-e2e-home
-kp get nodes && kp kgpoa && kp who && kp nodes && kp ns kube-system && kp ns -
+kind create cluster --name kdeck-e2e --kubeconfig /tmp/kdeck-e2e.kubeconfig
+export KUBECONFIG=/tmp/kdeck-e2e.kubeconfig KDECK_HOME=/tmp/kdeck-e2e-home
+kdeck get nodes && kdeck kgpoa && kdeck who && kdeck nodes && kdeck ns kube-system && kdeck ns -
 # apply broken scenarios (failing CronJob, webhook with no backend, stale Lease,
 # dangling RoleBinding, PDB with minAvailable=replicas, Ingress to a missing
 # Service, Deployment with a bad image, PVC stuck on a finalizer, expired TLS Secret)
-kp silent && kp silent --sensitive --check certificate
-kind delete cluster --name kp-e2e --kubeconfig /tmp/kp-e2e.kubeconfig
+kdeck silent && kdeck silent --sensitive --check certificate
+kind delete cluster --name kdeck-e2e --kubeconfig /tmp/kdeck-e2e.kubeconfig
 ```
 
 On 1 Nov 2026 this found all 12 planted failures in 109 ms on kind v1.37.0.
@@ -536,8 +536,8 @@ On 1 Nov 2026 this found all 12 planted failures in 109 ms on kind v1.37.0.
 Layout:
 
 ```text
-cmd/kp/               entry point
-internal/app/         embeds kubectl, adds kp commands, alias expansion, plugin dispatch
+cmd/kdeck/               entry point
+internal/app/         embeds kubectl, adds kdeck commands, alias expansion, plugin dispatch
 internal/alias/       shortcut grammar, verb shortcuts, user aliases
 internal/kctx/        ctx and ns
 internal/quick/       everyday helpers
@@ -545,12 +545,12 @@ internal/silent/      snapshot, 15 checks, engine, suppressions, output
 internal/plugin/      krew-compatible plugin manager
 internal/linode/      LKE and Linode resources
 internal/shell/       shell-init, alias, shortcuts
-internal/config/      ~/.kp config and state
+internal/config/      ~/.kdeck config and state
 ```
 
 ## Limitations and roadmap
 
-- Not built: telemetry-silence checks (SF-TELEMETRY-001), and persisting `kp silent serve` first-seen times across restarts.
-- `kp plugin install` has been tested with unit tests and a live index download, but no real plugin was installed during development.
+- Not built: telemetry-silence checks (SF-TELEMETRY-001), and persisting `kdeck silent serve` first-seen times across restarts.
+- `kdeck plugin install` has been tested with unit tests and a live index download, but no real plugin was installed during development.
 - Linode commands were tested against a local mock of the API, not a real account.
 - The binary is large (about 65 MB stripped, 98 MB unstripped) because it contains kubectl.

@@ -27,10 +27,10 @@ func TestNewer(t *testing.T) {
 
 func TestChecksumAndExtract(t *testing.T) {
 	name := ArchiveName("v0.2.0", "linux", "arm64")
-	if name != "kp_0.2.0_linux_arm64.tar.gz" || ArchiveName("v1.0.0", "windows", "amd64") != "kp_1.0.0_windows_amd64.zip" {
+	if name != "kdeck_0.2.0_linux_arm64.tar.gz" || ArchiveName("v1.0.0", "windows", "amd64") != "kdeck_1.0.0_windows_amd64.zip" {
 		t.Fatalf("archive name %q", name)
 	}
-	sums := []byte("abc123  kp_0.2.0_darwin_arm64.tar.gz\ndef456  " + name + "\n")
+	sums := []byte("abc123  kdeck_0.2.0_darwin_arm64.tar.gz\ndef456  " + name + "\n")
 	if got, err := ChecksumFor(sums, name); err != nil || got != "def456" {
 		t.Fatalf("checksum %q %v", got, err)
 	}
@@ -43,7 +43,7 @@ func TestChecksumAndExtract(t *testing.T) {
 	body := []byte("binary")
 	_ = tw.WriteHeader(&tar.Header{Name: "README.md", Mode: 0o644, Size: 2, Typeflag: tar.TypeReg})
 	_, _ = tw.Write([]byte("hi"))
-	_ = tw.WriteHeader(&tar.Header{Name: "kp", Mode: 0o755, Size: int64(len(body)), Typeflag: tar.TypeReg})
+	_ = tw.WriteHeader(&tar.Header{Name: "kdeck", Mode: 0o755, Size: int64(len(body)), Typeflag: tar.TypeReg})
 	_, _ = tw.Write(body)
 	tw.Close()
 	gz.Close()

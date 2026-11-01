@@ -22,7 +22,7 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - run: go test ./...
-      - run: go build -o bin/ ./cmd/kp
+      - run: go build -o bin/ ./cmd/kdeck
 
   cross-build:
     runs-on: ubuntu-latest
@@ -34,7 +34,7 @@ jobs:
       - name: build all release targets
         run: |
           for p in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-            GOOS=${p%/*} GOARCH=${p#*/} CGO_ENABLED=0 go build -o /dev/null ./cmd/kp
+            GOOS=${p%/*} GOARCH=${p#*/} CGO_ENABLED=0 go build -o /dev/null ./cmd/kdeck
           done
 
   e2e:
@@ -54,10 +54,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go build -o bin/kp ./cmd/kp
+      - run: go build -o bin/kdeck ./cmd/kdeck
       - uses: helm/kind-action@v1
         with:
           node_image: kindest/node:${{ matrix.node }}
-          cluster_name: kp-e2e
+          cluster_name: kdeck-e2e
       - name: planted silent failures, guard and shortcuts
-        run: ./hack/e2e.sh ./bin/kp
+        run: ./hack/e2e.sh ./bin/kdeck

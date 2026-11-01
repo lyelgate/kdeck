@@ -7,7 +7,7 @@ import (
 
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/lyelgate/kubepilot/internal/kubeconfig"
+	"github.com/lyelgate/kdeck/internal/kubeconfig"
 )
 
 func TestTokenFromLinodeCLI(t *testing.T) {

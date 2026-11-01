@@ -1,13 +1,13 @@
-// Package teleport is kp's built-in Teleport plugin. It wraps the official
-// tsh binary (Windows, macOS, Linux), so kp never handles Teleport
+// Package teleport is kdeck's built-in Teleport plugin. It wraps the official
+// tsh binary (Windows, macOS, Linux), so kdeck never handles Teleport
 // credentials itself. Setup asks one question, the proxy address; after that
 // the short commands need nothing else:
 //
-//	kp tl            tsh login --proxy=<saved proxy>
-//	kp tls [REGEX]   Kubernetes clusters you can reach
-//	kp tu REGEX      log in to the matching cluster and switch kubectl to it
-//	kp ts            tsh status
-//	kp tlo           tsh logout
+//	kdeck tl            tsh login --proxy=<saved proxy>
+//	kdeck tls [REGEX]   Kubernetes clusters you can reach
+//	kdeck tu REGEX      log in to the matching cluster and switch kubectl to it
+//	kdeck ts            tsh status
+//	kdeck tlo           tsh logout
 package teleport
 
 import (
@@ -25,13 +25,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lyelgate/kubepilot/internal/config"
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 // Binary returns the path of tsh, or an error with install guidance.
 func Binary() (string, error) {
-	if p := os.Getenv("KP_TSH"); p != "" {
+	if p := os.Getenv("KDECK_TSH"); p != "" {
 		return p, nil
 	}
 	name := "tsh"
@@ -40,7 +40,7 @@ func Binary() (string, error) {
 	}
 	p, err := exec.LookPath(name)
 	if err != nil {
-		return "", fmt.Errorf("tsh is not installed. Install the Teleport client for %s from https://goteleport.com/download/ (or: brew install teleport / winget install Teleport.Teleport), then run: kp tsh setup", runtime.GOOS)
+		return "", fmt.Errorf("tsh is not installed. Install the Teleport client for %s from https://goteleport.com/download/ (or: brew install teleport / winget install Teleport.Teleport), then run: kdeck tsh setup", runtime.GOOS)
 	}
 	return p, nil
 }
@@ -80,7 +80,7 @@ func Proxy() (config.TeleportConfig, error) {
 		return config.TeleportConfig{}, err
 	}
 	if cfg.Teleport.Proxy == "" {
-		return cfg.Teleport, errors.New("no Teleport proxy configured; run: kp tsh setup")
+		return cfg.Teleport, errors.New("no Teleport proxy configured; run: kdeck tsh setup")
 	}
 	return cfg.Teleport, nil
 }
@@ -111,7 +111,7 @@ func Setup(in io.Reader, out io.Writer, proxy, user, auth string) error {
 	if err := cfg.Save(); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "Saved Teleport proxy %s. Next: kp tl (login), kp tls (clusters), kp tu <cluster> (switch).\n", proxy)
+	fmt.Fprintf(out, "Saved Teleport proxy %s. Next: kdeck tl (login), kdeck tls (clusters), kdeck tu <cluster> (switch).\n", proxy)
 	return nil
 }
 
@@ -185,7 +185,7 @@ func ParseKubeLS(data []byte) ([]Cluster, error) {
 func clusters() ([]Cluster, error) {
 	data, err := capture("kube", "ls", "--format=json")
 	if err != nil {
-		return nil, fmt.Errorf("tsh kube ls failed (logged in? try: kp tl): %w", err)
+		return nil, fmt.Errorf("tsh kube ls failed (logged in? try: kdeck tl): %w", err)
 	}
 	return ParseKubeLS(data)
 }
@@ -198,22 +198,22 @@ func ensureLogin(out io.Writer) error {
 	return Login(out)
 }
 
-// NewCommand returns "kp tsh".
+// NewCommand returns "kdeck tsh".
 func NewCommand(out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "tsh",
 		Aliases: []string{"teleport", "tp-plugin"},
-		Short:   "Teleport plugin: one-time proxy setup, then kp tl / tls / tu for login, clusters and switching",
+		Short:   "Teleport plugin: one-time proxy setup, then kdeck tl / tls / tu for login, clusters and switching",
 		Long: `Teleport plugin, wrapping the official tsh client.
 
-Run "kp tsh setup" once (or "kp setup"); it asks only for your proxy address.
+Run "kdeck tsh setup" once (or "kdeck setup"); it asks only for your proxy address.
 Afterwards:
-  kp tl            log in (browser or SSO prompt as configured in Teleport)
-  kp tls [REGEX]   list Kubernetes clusters, filtered by regex
-  kp tu REGEX      log in to the matching cluster and switch kubectl to it
-  kp ts            session status
-  kp tlo           log out
-Anything else: kp tsh -- <tsh arguments>`,
+  kdeck tl            log in (browser or SSO prompt as configured in Teleport)
+  kdeck tls [REGEX]   list Kubernetes clusters, filtered by regex
+  kdeck tu REGEX      log in to the matching cluster and switch kubectl to it
+  kdeck ts            session status
+  kdeck tlo           log out
+Anything else: kdeck tsh -- <tsh arguments>`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -317,7 +317,7 @@ func Resolve(cs []Cluster, pattern string) (string, error) {
 	}
 	switch len(hits) {
 	case 0:
-		return "", fmt.Errorf("no Teleport cluster matches %q (see: kp tls)", pattern)
+		return "", fmt.Errorf("no Teleport cluster matches %q (see: kdeck tls)", pattern)
 	case 1:
 		return hits[0], nil
 	}
@@ -341,6 +341,6 @@ func Use(out io.Writer, pattern string) error {
 	if err := run(out, "kube", "login", name); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "Switched kubectl to Teleport cluster %q. Try: kp get nodes\n", name)
+	fmt.Fprintf(out, "Switched kubectl to Teleport cluster %q. Try: kdeck get nodes\n", name)
 	return nil
 }

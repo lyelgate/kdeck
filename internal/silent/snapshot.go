@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/metadata"
 )
 
-// GVRs for objects read through the dynamic client, so kp does not need
+// GVRs for objects read through the dynamic client, so kdeck does not need
 // typed clients for every CRD it understands.
 var (
 	gvrAPIService   = schema.GroupVersionResource{Group: "apiregistration.k8s.io", Version: "v1", Resource: "apiservices"}

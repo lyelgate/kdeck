@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 // Prices holds Linode list prices, region-specific where Linode publishes them.
@@ -137,7 +137,7 @@ func lifecycleCmds(o *opts) []*cobra.Command {
 			if _, err := c.UpdateLKECluster(cx, id, linodego.LKEClusterUpdateOptions{K8sVersion: version}); err != nil {
 				return err
 			}
-			fmt.Fprintf(o.out, "Control plane upgrade to %s started. Nodes keep the old version until recycled:\n  kp silent --check workload   # make sure no PDB blocks draining (SF-PDB-001)\n  kp linode lke recycle %d --yes\n", version, id)
+			fmt.Fprintf(o.out, "Control plane upgrade to %s started. Nodes keep the old version until recycled:\n  kdeck silent --check workload   # make sure no PDB blocks draining (SF-PDB-001)\n  kdeck linode lke recycle %d --yes\n", version, id)
 			return nil
 		},
 	}
@@ -171,7 +171,7 @@ func lifecycleCmds(o *opts) []*cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(o.out, "Recycle started; nodes are drained and replaced one at a time. Watch: kp nodes")
+			fmt.Fprintln(o.out, "Recycle started; nodes are drained and replaced one at a time. Watch: kdeck nodes")
 			return nil
 		},
 	}
@@ -358,7 +358,7 @@ func costCmd(o *opts) *cobra.Command {
 				nbCost += prices.NodeBalancer(nb.Region)
 			}
 			fmt.Fprintf(o.out, "\nClusters total:        %s/mo\n", money(total))
-			fmt.Fprintf(o.out, "Unattached volumes:    %s/mo (%d GB; see kp linode leftovers)\n", money(unattachedCost), unattachedGB)
+			fmt.Fprintf(o.out, "Unattached volumes:    %s/mo (%d GB; see kdeck linode leftovers)\n", money(unattachedCost), unattachedGB)
 			fmt.Fprintf(o.out, "NodeBalancers:         %s/mo (%d)\n", money(nbCost), len(nbs))
 			fmt.Fprintf(o.out, "Account total:         %s/mo  (list prices, before credits, transfer and backups)\n", money(total+unattachedCost+nbCost))
 			return nil
@@ -371,8 +371,8 @@ func leftoversCmd(o *opts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "leftovers",
 		Short: "Resources billing with nothing using them: unattached volumes, NodeBalancers no LoadBalancer Service points at",
-		Example: `  kp linode leftovers                          # checks NodeBalancers against the current context
-  kp linode leftovers --k8s-contexts '^lke-'   # against every matching kubeconfig context`,
+		Example: `  kdeck linode leftovers                          # checks NodeBalancers against the current context
+  kdeck linode leftovers --k8s-contexts '^lke-'   # against every matching kubeconfig context`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			c, err := o.client()
 			if err != nil {

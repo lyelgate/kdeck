@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 // Options select pods, containers and lines.
@@ -198,7 +198,7 @@ func (t *tailer) start(ctx context.Context, pod *corev1.Pod, container string) {
 		stream, err := t.cs.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, lo).Stream(sctx)
 		if err != nil {
 			if sctx.Err() == nil {
-				t.write(prefix, "kp: cannot stream logs: "+err.Error())
+				t.write(prefix, "kdeck: cannot stream logs: "+err.Error())
 			}
 			return
 		}

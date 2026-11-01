@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/lyelgate/kubepilot/internal/match"
-	"github.com/lyelgate/kubepilot/internal/stern"
+	"github.com/lyelgate/kdeck/internal/match"
+	"github.com/lyelgate/kdeck/internal/stern"
 )
 
 // onePod resolves a regex to a single pod: an exact name wins; otherwise the
@@ -40,7 +40,7 @@ func onePod(d Deps, cmd *cobra.Command, pattern string, all bool) (corev1.Pod, e
 		names[i] = p.Namespace + "/" + p.Name
 		byName[names[i]] = p
 	}
-	if os.Getenv("KP_NO_FZF") == "" && isTTY(os.Stdin) && isTTY(os.Stdout) {
+	if os.Getenv("KDECK_NO_FZF") == "" && isTTY(os.Stdin) && isTTY(os.Stdout) {
 		if choice, err := pickOne("pod", names); err == nil {
 			return byName[choice], nil
 		}
@@ -61,15 +61,15 @@ func logCmd(d Deps) *cobra.Command {
 	var tail int64
 	cmd := &cobra.Command{
 		Use:     "log POD-REGEX",
-		Aliases: []string{"kplog", "kpl"},
+		Aliases: []string{"dklog", "dkl"},
 		Short:   "Logs of the pod matching a regex (one pod; --all for every match, stern-style)",
 		Long:    "Show logs of one pod chosen by regex: exact name first, then the best running match.\n" + regexHelp,
-		Example: `  kp log abc               # abc-7d9f-x2, abc-worker-1, ... -> the best match
-  kp log abc -f            # follow
-  kp log abc -c sidecar    # a container (regex)
-  kp log abc -p            # previous (crashed) container
-  kp log abc --all -f      # every matching pod, colour-prefixed
-  kplog abc                # same, after "kp shortcuts install"`,
+		Example: `  kdeck log abc               # abc-7d9f-x2, abc-worker-1, ... -> the best match
+  kdeck log abc -f            # follow
+  kdeck log abc -c sidecar    # a container (regex)
+  kdeck log abc -p            # previous (crashed) container
+  kdeck log abc --all -f      # every matching pod, colour-prefixed
+  dklog abc                # same, after "kdeck shortcuts install"`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if every {
@@ -146,12 +146,12 @@ func descCmd(d Deps) *cobra.Command {
 	var allNS, every bool
 	cmd := &cobra.Command{
 		Use:     "desc POD-REGEX",
-		Aliases: []string{"kpdesc", "kpd"},
+		Aliases: []string{"dkdesc", "dkd"},
 		Short:   "kubectl describe of the pod matching a regex (one pod; --all for every match)",
 		Long:    "Describe one pod chosen by regex.\n" + regexHelp,
-		Example: `  kp desc abc
-  kp desc abc --all
-  kpdesc abc`,
+		Example: `  kdeck desc abc
+  kdeck desc abc --all
+  dkdesc abc`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pods, err := targets(d, cmd, args[0], allNS, every)
@@ -175,12 +175,12 @@ func imgCmd(d Deps) *cobra.Command {
 	var allNS, every bool
 	cmd := &cobra.Command{
 		Use:     "img POD-REGEX",
-		Aliases: []string{"kpimg", "kpi"},
+		Aliases: []string{"dkimg", "dki"},
 		Short:   "Images of the pod matching a regex: container, image, resolved digest",
 		Long:    "List each container's image and the digest actually running.\n" + regexHelp,
-		Example: `  kp img abc
-  kp img abc --all
-  kpimg abc`,
+		Example: `  kdeck img abc
+  kdeck img abc --all
+  dkimg abc`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pods, err := targets(d, cmd, args[0], allNS, every)
@@ -211,13 +211,13 @@ func poCmd(d Deps) *cobra.Command {
 	var output string
 	cmd := &cobra.Command{
 		Use:     "po POD-REGEX",
-		Aliases: []string{"kppo", "getpo"},
+		Aliases: []string{"dkpo", "getpo"},
 		Short:   "kubectl get pods for every pod matching a regex (-o wide by default)",
 		Long:    "Run kubectl get on the pods whose names match a regex.\n" + regexHelp,
-		Example: `  kp po abc
-  kp po abc -o yaml
-  kp po '^abc-' -A
-  kppo abc`,
+		Example: `  kdeck po abc
+  kdeck po abc -o yaml
+  kdeck po '^abc-' -A
+  dkpo abc`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pods, err := matchingPods(d, cmd, args[0], allNS, "")
@@ -268,6 +268,6 @@ func targets(d Deps, cmd *cobra.Command, pattern string, allNS, every bool) ([]c
 	return []corev1.Pod{p}, nil
 }
 
-// KPNames are the kp-prefixed command names "kp shortcuts install" links, so
-// "kplog abc" works straight from the shell.
-var KPNames = []string{"kplog", "kpdesc", "kpimg", "kppo", "kppod", "kpsh", "kppf", "kptail", "kpns", "kpctx", "kpfind", "kpbad"}
+// DKNames are the dk-prefixed command names "kdeck shortcuts install" links, so
+// "dklog abc" works straight from the shell.
+var DKNames = []string{"dklog", "dkdesc", "dkimg", "dkpo", "dkpod", "dksh", "dkpf", "dktail", "dkns", "dkctx", "dkfind", "dkbad"}

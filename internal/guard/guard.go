@@ -2,11 +2,11 @@
 // as a read, a write (changes the cluster) or an exec (runs commands inside
 // pods), then applies the rules:
 //
-//   - Read-only (--ro, KP_RO=1, or a context matching safety.readOnly):
+//   - Read-only (--ro, KDECK_RO=1, or a context matching safety.readOnly):
 //     writes and execs are refused.
 //   - Production (a context matching safety.production): writes need the
 //     context name typed back; "apply" shows a diff first.
-//   - Every write and exec is appended to ~/.kp/history.jsonl with its exit
+//   - Every write and exec is appended to ~/.kdeck/history.jsonl with its exit
 //     code and, where possible, the command that undoes it.
 package guard
 
@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lyelgate/kubepilot/internal/config"
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 // Kind of command.
@@ -42,11 +42,11 @@ var writeVerbs = map[string]map[string]bool{
 	"taint": nil, "drain": nil, "cordon": nil, "uncordon": nil, "set": nil, "debug": nil, "cp": nil,
 	"rollout":     {"restart": true, "undo": true, "pause": true, "resume": true},
 	"certificate": {"approve": true, "deny": true},
-	// kp commands that change things.
+	// kdeck commands that change things.
 	"restart": nil, "clean": nil, "edit-secret": nil,
 }
 
-var execVerbs = map[string]bool{"exec": true, "attach": true, "sh": true, "shell": true, "kpsh": true, "each": true, "node-sh": true, "netshoot": true}
+var execVerbs = map[string]bool{"exec": true, "attach": true, "sh": true, "shell": true, "dksh": true, "each": true, "node-sh": true, "netshoot": true}
 
 // Classify returns the kind of a fully expanded command line and the
 // words that identify it ("rollout restart").
@@ -156,8 +156,8 @@ func Resolve(cfg config.SafetyConfig, ctx string, roFlag bool) Policy {
 	switch {
 	case roFlag:
 		p.ReadOnly, p.Reason = true, "--ro"
-	case os.Getenv("KP_RO") != "" && os.Getenv("KP_RO") != "0":
-		p.ReadOnly, p.Reason = true, "KP_RO"
+	case os.Getenv("KDECK_RO") != "" && os.Getenv("KDECK_RO") != "0":
+		p.ReadOnly, p.Reason = true, "KDECK_RO"
 	default:
 		for _, pat := range cfg.ReadOnly {
 			if m, err := match.Compile(pat); err == nil && m.Match(ctx) {
@@ -183,11 +183,11 @@ func Check(p Policy, kind Kind, what string, confirm func(Policy, string) bool) 
 		return ErrRefused{fmt.Sprintf("read-only (%s): refusing %s %q on context %q", p.Reason, kind, what, p.Context)}
 	}
 	if kind == Write && p.Production {
-		if os.Getenv("KP_CONFIRM_CONTEXT") == p.Context {
+		if os.Getenv("KDECK_CONFIRM_CONTEXT") == p.Context {
 			return nil
 		}
 		if !confirm(p, what) {
-			return ErrRefused{fmt.Sprintf("not confirmed: %q on production context %q (in scripts set KP_CONFIRM_CONTEXT=%s)", what, p.Context, p.Context)}
+			return ErrRefused{fmt.Sprintf("not confirmed: %q on production context %q (in scripts set KDECK_CONFIRM_CONTEXT=%s)", what, p.Context, p.Context)}
 		}
 	}
 	return nil
@@ -205,7 +205,7 @@ func Confirm(in io.Reader, out io.Writer, interactive bool) func(Policy, string)
 	}
 }
 
-// Entry is one line of ~/.kp/history.jsonl.
+// Entry is one line of ~/.kdeck/history.jsonl.
 type Entry struct {
 	Time      time.Time `json:"time"`
 	Context   string    `json:"context"`
@@ -267,15 +267,15 @@ func UndoHint(args []string, ctx string, prevReplicas string) string {
 	}
 	switch {
 	case words[0] == "scale" && prevReplicas != "":
-		return fmt.Sprintf("kp --context %s scale %s --replicas=%s%s", ctx, target, prevReplicas, ns)
+		return fmt.Sprintf("kdeck --context %s scale %s --replicas=%s%s", ctx, target, prevReplicas, ns)
 	case words[0] == "rollout" && len(words) > 2 && (words[1] == "restart" || words[1] == "undo"):
-		return fmt.Sprintf("kp --context %s rollout undo %s%s", ctx, strings.Join(words[2:], " "), ns)
+		return fmt.Sprintf("kdeck --context %s rollout undo %s%s", ctx, strings.Join(words[2:], " "), ns)
 	case words[0] == "cordon" && len(words) > 1:
-		return fmt.Sprintf("kp --context %s uncordon %s", ctx, strings.Join(words[1:], " "))
+		return fmt.Sprintf("kdeck --context %s uncordon %s", ctx, strings.Join(words[1:], " "))
 	case words[0] == "uncordon" && len(words) > 1:
-		return fmt.Sprintf("kp --context %s cordon %s", ctx, strings.Join(words[1:], " "))
+		return fmt.Sprintf("kdeck --context %s cordon %s", ctx, strings.Join(words[1:], " "))
 	case words[0] == "drain" && len(words) > 1:
-		return fmt.Sprintf("kp --context %s uncordon %s", ctx, strings.Join(words[1:], " "))
+		return fmt.Sprintf("kdeck --context %s uncordon %s", ctx, strings.Join(words[1:], " "))
 	}
 	return ""
 }

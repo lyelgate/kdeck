@@ -15,7 +15,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/match"
 	"github.com/spf13/cobra"
 	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -231,10 +231,10 @@ func podsCmd(d Deps) *cobra.Command {
 		Aliases: []string{"ps"},
 		Short:   "Pods sorted problems first, with real status (CrashLoopBackOff, OOMKilled, ...); filter by regex",
 		Long:    "List pods, unhealthy first, optionally filtered by a name regex.\n" + regexHelp,
-		Example: `  kp pods                 # current namespace
-  kp pods api -A          # names matching "api", all namespaces
-  kp pods '^(web|api)-'   # regex
-  kp pods --bad -A        # only pods that are not Running and Ready`,
+		Example: `  kdeck pods                 # current namespace
+  kdeck pods api -A          # names matching "api", all namespaces
+  kdeck pods '^(web|api)-'   # regex
+  kdeck pods --bad -A        # only pods that are not Running and Ready`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pods, err := listPods(d, cmd, all, selector)
@@ -261,8 +261,8 @@ func podsCmd(d Deps) *cobra.Command {
 func badCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:     "bad",
-		Aliases: []string{"kpbad"},
-		Short:   "Unhealthy pods in all namespaces (same as: kp pods --bad -A)",
+		Aliases: []string{"dkbad"},
+		Short:   "Unhealthy pods in all namespaces (same as: kdeck pods --bad -A)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			pods, err := listPods(d, cmd, true, "")
 			if err != nil {
@@ -279,13 +279,13 @@ func shCmd(d Deps) *cobra.Command {
 	var container string
 	cmd := &cobra.Command{
 		Use:     "sh POD-REGEX|TYPE/NAME [-- COMMAND...]",
-		Aliases: []string{"shell", "kpsh"},
+		Aliases: []string{"shell", "dksh"},
 		Short:   "Open a shell in the best pod matching a regex: bash if present, otherwise sh",
 		Long:    "Open a shell in a pod. A regex picks the best match: running and ready first.\n" + regexHelp,
-		Example: `  kp sh api               # first ready pod matching "api"
-  kp sh '^web-0$'
-  kp sh deploy/api -c app
-  kp sh api -- ls /data`,
+		Example: `  kdeck sh api               # first ready pod matching "api"
+  kdeck sh '^web-0$'
+  kdeck sh deploy/api -c app
+  kdeck sh api -- ls /data`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target := args[0]
@@ -389,10 +389,10 @@ func restartCmd(d Deps) *cobra.Command {
 		Use:   "restart TYPE/NAME... | WORKLOAD-REGEX",
 		Short: "Rolling restart of deployments, statefulsets or daemonsets (by name or regex), then wait",
 		Long:  "Rolling restart, then wait for each rollout. A regex matches Deployment, StatefulSet and DaemonSet names; more than one match needs --yes.\n" + regexHelp,
-		Example: `  kp restart deploy/api
-  kp restart deploy/api sts/worker
-  kp restart '^api-'            # list what would restart
-  kp restart '^api-' --yes`,
+		Example: `  kdeck restart deploy/api
+  kdeck restart deploy/api sts/worker
+  kdeck restart '^api-'            # list what would restart
+  kdeck restart '^api-' --yes`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 && !strings.Contains(args[0], "/") {
@@ -433,9 +433,9 @@ func imagesCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "images [IMAGE-REGEX]",
 		Short: "Every container image in use, with how many pods run it; filter by regex",
-		Example: `  kp images -A
-  kp images 'nginx|envoy' -A
-  kp images ':latest$' -A      # images pinned to latest`,
+		Example: `  kdeck images -A
+  kdeck images 'nginx|envoy' -A
+  kdeck images ':latest$' -A      # images pinned to latest`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pattern := ""
@@ -490,9 +490,9 @@ func cleanCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clean",
 		Short: "Delete Failed and Evicted pods (dry run unless --yes)",
-		Example: `  kp clean -A              # list what would be deleted
-  kp clean -A --yes        # delete Failed/Evicted pods
-  kp clean --completed --yes   # also delete Succeeded pods`,
+		Example: `  kdeck clean -A              # list what would be deleted
+  kdeck clean -A --yes        # delete Failed/Evicted pods
+  kdeck clean --completed --yes   # also delete Succeeded pods`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cs, ns, err := d.client()
 			if err != nil {
@@ -557,8 +557,8 @@ func neatCmd(d Deps) *cobra.Command {
 		Use:     "neat TYPE NAME | TYPE/NAME",
 		Aliases: []string{"yaml", "clean-yaml"},
 		Short:   "YAML without status, managedFields and server-set metadata, ready to re-apply",
-		Example: `  kp neat deploy/api > api.yaml
-  kp neat svc web`,
+		Example: `  kdeck neat deploy/api > api.yaml
+  kdeck neat svc web`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var buf bytes.Buffer
@@ -623,8 +623,8 @@ func decodeCmd(d Deps) *cobra.Command {
 		Use:     "decode SECRET [KEY]",
 		Aliases: []string{"secret"},
 		Short:   "Print a Secret's values base64-decoded (careful: shows secret material)",
-		Example: `  kp decode db-credentials
-  kp decode db-credentials password`,
+		Example: `  kdeck decode db-credentials
+  kdeck decode db-credentials password`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cs, ns, err := d.client()
@@ -764,8 +764,8 @@ func netshootCmd(d Deps) *cobra.Command {
 		Aliases: []string{"debug-pod", "toolbox"},
 		Short:   "Start a throwaway troubleshooting pod (dig, curl, tcpdump, ...) and delete it on exit",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			name := fmt.Sprintf("kp-netshoot-%d", time.Now().Unix()%100000)
-			return d.Kubectl("run", name, "--rm", "-it", "--restart=Never", "--image="+image, "--labels=app.kubernetes.io/managed-by=kp", "--", "bash")
+			name := fmt.Sprintf("kdeck-netshoot-%d", time.Now().Unix()%100000)
+			return d.Kubectl("run", name, "--rm", "-it", "--restart=Never", "--image="+image, "--labels=app.kubernetes.io/managed-by=kdeck", "--", "bash")
 		},
 	}
 	cmd.Flags().StringVar(&image, "image", "nicolaka/netshoot:v0.13", "troubleshooting image")
@@ -800,16 +800,16 @@ func eachCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "each [POD-REGEX] [-l SELECTOR] -- COMMAND...",
 		Short: "Run a command in every running pod matching a regex and/or selector",
-		Example: `  kp each '^web-' -- cat /etc/hostname
-  kp each -l app=api -c app -- env
-  kp each api -l tier=backend -- date`,
+		Example: `  kdeck each '^web-' -- cat /etc/hostname
+  kdeck each -l app=api -c app -- env
+  kdeck each api -l tier=backend -- date`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pattern := ""
 			if dash := cmd.ArgsLenAtDash(); dash == 1 {
 				pattern, args = args[0], args[1:]
 			} else if dash < 0 {
-				return fmt.Errorf("put the command after --, e.g. kp each api -- date")
+				return fmt.Errorf("put the command after --, e.g. kdeck each api -- date")
 			}
 			if pattern == "" && selector == "" {
 				return fmt.Errorf("give a pod regex or --selector (-l)")

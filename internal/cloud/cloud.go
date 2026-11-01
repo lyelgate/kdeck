@@ -19,8 +19,8 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/lyelgate/kubepilot/internal/kubeconfig"
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/kubeconfig"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 // Cluster is one managed cluster as listed by a provider.
@@ -173,7 +173,7 @@ var providers = map[string]provider{
 	},
 }
 
-// NewCommands returns "kp eks", "kp gke" and "kp aks".
+// NewCommands returns "kdeck eks", "kdeck gke" and "kdeck aks".
 func NewCommands(cfgFlags *genericclioptions.ConfigFlags, out io.Writer) []*cobra.Command {
 	var cmds []*cobra.Command
 	titles := map[string]string{"eks": "AWS EKS", "gke": "Google GKE", "aks": "Azure AKS"}
@@ -195,9 +195,9 @@ func NewCommands(cfgFlags *genericclioptions.ConfigFlags, out io.Writer) []*cobr
 		root := &cobra.Command{
 			Use:   key,
 			Short: titles[key] + ": list clusters and connect kubectl (uses the " + p.cli + " CLI and your existing login)",
-			Example: fmt.Sprintf(`  kp %[1]s ls
-  kp %[1]s ls prod                      # regex filter
-  kp %[1]s use prod-api --name prod     # connect, rename the context to "prod", switch to it`, key),
+			Example: fmt.Sprintf(`  kdeck %[1]s ls
+  kdeck %[1]s ls prod                      # regex filter
+  kdeck %[1]s use prod-api --name prod     # connect, rename the context to "prod", switch to it`, key),
 		}
 		for _, sf := range scopeFlags[key] {
 			ptrs[sf[0]] = root.PersistentFlags().String(sf[0], "", sf[1])
@@ -278,7 +278,7 @@ func NewCommands(cfgFlags *genericclioptions.ConfigFlags, out io.Writer) []*cobr
 			use.Flags().BoolVar(&kubelogin, "kubelogin", false, "convert to kubelogin (Entra ID / AAD clusters)")
 		}
 		root.AddCommand(use)
-		root.GroupID = "kp"
+		root.GroupID = "kdeck"
 		cmds = append(cmds, root)
 	}
 	return cmds

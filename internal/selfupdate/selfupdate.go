@@ -1,4 +1,4 @@
-// Package selfupdate implements "kp update": find the latest GitHub release,
+// Package selfupdate implements "kdeck update": find the latest GitHub release,
 // download the archive for this OS and CPU, verify it against the release's
 // checksums.txt, and replace the running binary.
 package selfupdate
@@ -25,11 +25,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kdeck/internal/config"
 )
 
-// DefaultRepo publishes kp releases unless update.repo is set.
-const DefaultRepo = "lyelgate/kubepilot"
+// DefaultRepo publishes kdeck releases unless update.repo is set.
+const DefaultRepo = "lyelgate/kdeck"
 
 type release struct {
 	Tag    string `json:"tag_name"`
@@ -42,7 +42,7 @@ type release struct {
 var client = &http.Client{Timeout: 5 * time.Minute}
 
 func apiBase() string {
-	if b := os.Getenv("KP_UPDATE_URL"); b != "" {
+	if b := os.Getenv("KDECK_UPDATE_URL"); b != "" {
 		return strings.TrimRight(b, "/")
 	}
 	return "https://api.github.com"
@@ -110,7 +110,7 @@ func ArchiveName(version, goos, goarch string) string {
 	if goos == "windows" {
 		ext = ".zip"
 	}
-	return fmt.Sprintf("kp_%s_%s_%s%s", strings.TrimPrefix(version, "v"), goos, goarch, ext)
+	return fmt.Sprintf("kdeck_%s_%s_%s%s", strings.TrimPrefix(version, "v"), goos, goarch, ext)
 }
 
 // ChecksumFor finds an asset's sha256 in a checksums.txt body.
@@ -126,9 +126,9 @@ func ChecksumFor(checksums []byte, name string) (string, error) {
 }
 
 func extractBinary(archive []byte, name string) ([]byte, error) {
-	bin := "kp"
+	bin := "kdeck"
 	if strings.HasSuffix(name, ".zip") {
-		bin = "kp.exe"
+		bin = "kdeck.exe"
 		zr, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
 		if err != nil {
 			return nil, err
@@ -167,7 +167,7 @@ func extractBinary(archive []byte, name string) ([]byte, error) {
 // replace swaps the running executable for data.
 func replace(self string, data []byte) error {
 	dir := filepath.Dir(self)
-	tmp, err := os.CreateTemp(dir, ".kp-update-*")
+	tmp, err := os.CreateTemp(dir, ".kdeck-update-*")
 	if err != nil {
 		return fmt.Errorf("cannot write next to %s (%w); reinstall with your package manager or run with permission to that directory", self, err)
 	}
@@ -192,12 +192,12 @@ func replace(self string, data []byte) error {
 	return os.Rename(tmp.Name(), self)
 }
 
-// NewCommand returns "kp update".
+// NewCommand returns "kdeck update".
 func NewCommand(out io.Writer, current string) *cobra.Command {
 	var check bool
 	cmd := &cobra.Command{
 		Use:   "update",
-		Short: "Update kp to the latest release (checksum-verified); --check only reports",
+		Short: "Update kdeck to the latest release (checksum-verified); --check only reports",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			repo := DefaultRepo
 			if cfg, err := config.Load(); err == nil && cfg.Update.Repo != "" {
@@ -208,10 +208,10 @@ func NewCommand(out io.Writer, current string) *cobra.Command {
 				return err
 			}
 			if !Newer(r.Tag, current) {
-				fmt.Fprintf(out, "kp %s is up to date (latest %s).\n", current, r.Tag)
+				fmt.Fprintf(out, "kdeck %s is up to date (latest %s).\n", current, r.Tag)
 				return nil
 			}
-			fmt.Fprintf(out, "kp %s -> %s available.\n", current, r.Tag)
+			fmt.Fprintf(out, "kdeck %s -> %s available.\n", current, r.Tag)
 			if check {
 				return nil
 			}
@@ -256,7 +256,7 @@ func NewCommand(out io.Writer, current string) *cobra.Command {
 				return err
 			}
 			if strings.Contains(self, string(filepath.Separator)+"Cellar"+string(filepath.Separator)) {
-				return fmt.Errorf("kp was installed with Homebrew; run: brew upgrade kp")
+				return fmt.Errorf("kdeck was installed with Homebrew; run: brew upgrade kdeck")
 			}
 			if err := replace(self, bin); err != nil {
 				return err

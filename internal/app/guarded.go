@@ -15,12 +15,12 @@ import (
 	"golang.org/x/term"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/lyelgate/kubepilot/internal/config"
-	"github.com/lyelgate/kubepilot/internal/guard"
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/guard"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
-// kpFlags are kp-level flags removed before kubectl sees the arguments.
+// kpFlags are kdeck-level flags removed before kubectl sees the arguments.
 type kpFlags struct {
 	readOnly bool
 	contexts string // -C / --contexts regex for multi-cluster runs
@@ -95,18 +95,18 @@ func stdinIsTTY() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
 // the command is a read).
 func guardCommand(cfg *config.Config, f kpFlags, args []string) (*guard.Entry, error) {
 	kind, what := guard.Classify(args)
-	if kind == guard.Read || os.Getenv("KP_INTERNAL_NOGUARD") == "1" {
+	if kind == guard.Read || os.Getenv("KDECK_INTERNAL_NOGUARD") == "1" {
 		return nil, nil
 	}
 	ctx := targetContext(args)
 	p := guard.Resolve(cfg.Safety, ctx, f.readOnly)
 
 	// Preview apply on production before asking.
-	if kind == guard.Write && p.Production && p.DiffApply && !p.ReadOnly && strings.HasPrefix(what, "apply") && os.Getenv("KP_CONFIRM_CONTEXT") != ctx {
+	if kind == guard.Write && p.Production && p.DiffApply && !p.ReadOnly && strings.HasPrefix(what, "apply") && os.Getenv("KDECK_CONFIRM_CONTEXT") != ctx {
 		fmt.Fprintf(os.Stderr, "Diff against production context %q:\n", ctx)
 		if self, err := os.Executable(); err == nil {
 			c := exec.Command(self, guard.ApplyDiffArgs(args)...)
-			c.Env = append(os.Environ(), "KP_INTERNAL_NOGUARD=1")
+			c.Env = append(os.Environ(), "KDECK_INTERNAL_NOGUARD=1")
 			c.Stdout, c.Stderr = os.Stderr, os.Stderr
 			err := c.Run()
 			if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() > 1 {
@@ -188,8 +188,8 @@ func runMulti(cfg *config.Config, f kpFlags, args []string) int {
 		if kind == guard.Write {
 			fmt.Fprintf(os.Stderr, "%s will run on %d contexts: %s\n", what, len(ctxs), strings.Join(ctxs, ", "))
 			if len(prod) > 0 || len(ctxs) > 1 {
-				if !stdinIsTTY() && os.Getenv("KP_CONFIRM_MULTI") != fmt.Sprint(len(ctxs)) {
-					fmt.Fprintf(os.Stderr, "error: not confirmed (in scripts set KP_CONFIRM_MULTI=%d)\n", len(ctxs))
+				if !stdinIsTTY() && os.Getenv("KDECK_CONFIRM_MULTI") != fmt.Sprint(len(ctxs)) {
+					fmt.Fprintf(os.Stderr, "error: not confirmed (in scripts set KDECK_CONFIRM_MULTI=%d)\n", len(ctxs))
 					return 1
 				}
 				if stdinIsTTY() {
@@ -219,7 +219,7 @@ func runMulti(cfg *config.Config, f kpFlags, args []string) int {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			cmd := exec.Command(self, append([]string{"--context", c}, args...)...)
-			cmd.Env = append(os.Environ(), "KP_CONFIRM_CONTEXT="+c, "KP_MULTI_CHILD=1", "KP_NO_FZF=1")
+			cmd.Env = append(os.Environ(), "KDECK_CONFIRM_CONTEXT="+c, "KDECK_MULTI_CHILD=1", "KDECK_NO_FZF=1")
 			var out, errb bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &out, &errb
 			err := cmd.Run()

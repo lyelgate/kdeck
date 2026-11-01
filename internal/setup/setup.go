@@ -1,5 +1,5 @@
-// Package setup provides "kp setup" (one-question first run) and
-// "kp doctor" (environment and compatibility checks).
+// Package setup provides "kdeck setup" (one-question first run) and
+// "kdeck doctor" (environment and compatibility checks).
 package setup
 
 import (
@@ -20,20 +20,20 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/lyelgate/kubepilot/internal/config"
-	"github.com/lyelgate/kubepilot/internal/teleport"
+	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/teleport"
 )
 
-// Tools kp can use, and what they are for.
+// Tools kdeck can use, and what they are for.
 var Tools = [][2]string{
 	{"fzf", "interactive pickers for ctx, ns, pods"},
-	{"tsh", "Teleport plugin (kp tl / tls / tu)"},
-	{"aws", "kp eks, and EKS credentials"},
-	{"gcloud", "kp gke"},
+	{"tsh", "Teleport plugin (kdeck tl / tls / tu)"},
+	{"aws", "kdeck eks, and EKS credentials"},
+	{"gcloud", "kdeck gke"},
 	{"gke-gcloud-auth-plugin", "GKE credentials"},
-	{"az", "kp aks"},
+	{"az", "kdeck aks"},
 	{"kubelogin", "AKS Entra ID credentials"},
-	{"linode-cli", "kp linode cli pass-through (optional)"},
+	{"linode-cli", "kdeck linode cli pass-through (optional)"},
 }
 
 func exe(name string) string {
@@ -68,38 +68,38 @@ func DetectShell() string {
 	return "bash"
 }
 
-// RCLine is the line that loads kp's shell setup, and the file it goes in.
+// RCLine is the line that loads kdeck's shell setup, and the file it goes in.
 func RCLine(shell string) (line, file string) {
 	home, _ := os.UserHomeDir()
 	switch shell {
 	case "zsh":
-		return `eval "$(kp shell-init zsh)"`, filepath.Join(home, ".zshrc")
+		return `eval "$(kdeck shell-init zsh)"`, filepath.Join(home, ".zshrc")
 	case "fish":
-		return `kp shell-init fish | source`, filepath.Join(home, ".config", "fish", "config.fish")
+		return `kdeck shell-init fish | source`, filepath.Join(home, ".config", "fish", "config.fish")
 	case "powershell":
-		return `kp shell-init powershell | Out-String | Invoke-Expression`, "$PROFILE"
+		return `kdeck shell-init powershell | Out-String | Invoke-Expression`, "$PROFILE"
 	case "cmd":
-		return `kp shell-init cmd > "%USERPROFILE%\kp-macros.cmd"  (then see the comments in that file)`, ""
+		return `kdeck shell-init cmd > "%USERPROFILE%\kdeck-macros.cmd"  (then see the comments in that file)`, ""
 	}
-	return `eval "$(kp shell-init bash)"`, filepath.Join(home, ".bashrc")
+	return `eval "$(kdeck shell-init bash)"`, filepath.Join(home, ".bashrc")
 }
 
-// NewSetupCommand returns "kp setup".
+// NewSetupCommand returns "kdeck setup".
 func NewSetupCommand(out io.Writer) *cobra.Command {
 	var proxy string
 	var skipTeleport, writeRC bool
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "First run: asks only for your Teleport proxy, then shows tools found and your shell setup line",
-		Example: `  kp setup                                  # interactive: one question
-  kp setup --teleport-proxy tp.example.com:443
-  kp setup --skip-teleport --write-rc       # also append the shell line to your rc file`,
+		Example: `  kdeck setup                                  # interactive: one question
+  kdeck setup --teleport-proxy tp.example.com:443
+  kdeck setup --skip-teleport --write-rc       # also append the shell line to your rc file`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			fmt.Fprintf(out, "kubepilot setup (%s/%s)\n\n", runtime.GOOS, runtime.GOARCH)
+			fmt.Fprintf(out, "kdeck setup (%s/%s)\n\n", runtime.GOOS, runtime.GOARCH)
 			if !skipTeleport {
 				cfg, _ := config.Load()
 				if proxy == "" && cfg != nil && cfg.Teleport.Proxy != "" {
-					fmt.Fprintf(out, "Teleport proxy already set: %s (change with: kp tsh setup)\n", cfg.Teleport.Proxy)
+					fmt.Fprintf(out, "Teleport proxy already set: %s (change with: kdeck tsh setup)\n", cfg.Teleport.Proxy)
 				} else if proxy != "" {
 					if err := teleport.Setup(os.Stdin, out, proxy, "", ""); err != nil {
 						return err
@@ -136,7 +136,7 @@ func NewSetupCommand(out io.Writer) *cobra.Command {
 			}
 			if writeRC && file != "" && file != "$PROFILE" {
 				data, _ := os.ReadFile(file)
-				if strings.Contains(string(data), "kp shell-init") {
+				if strings.Contains(string(data), "kdeck shell-init") {
 					fmt.Fprintln(out, "  already present; not changed")
 				} else {
 					if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
@@ -146,7 +146,7 @@ func NewSetupCommand(out io.Writer) *cobra.Command {
 					if err != nil {
 						return err
 					}
-					_, err = fmt.Fprintf(f, "\n# kubepilot\n%s\n", line)
+					_, err = fmt.Fprintf(f, "\n# kdeck\n%s\n", line)
 					f.Close()
 					if err != nil {
 						return err
@@ -154,8 +154,8 @@ func NewSetupCommand(out io.Writer) *cobra.Command {
 					fmt.Fprintln(out, "  added; open a new terminal")
 				}
 			}
-			fmt.Fprintln(out, "\nShortcut commands without shell setup (kplog, kpns, kgpo, ...): kp shortcuts install")
-			fmt.Fprintln(out, "Check everything: kp doctor")
+			fmt.Fprintln(out, "\nShortcut commands without shell setup (dklog, dkns, kgpo, ...): kdeck shortcuts install")
+			fmt.Fprintln(out, "Check everything: kdeck doctor")
 			return nil
 		},
 	}
@@ -189,7 +189,7 @@ func Skew(client, server string) (int, bool) {
 	return d, d >= -1 && d <= 1
 }
 
-// NewDoctorCommand returns "kp doctor".
+// NewDoctorCommand returns "kdeck doctor".
 func NewDoctorCommand(flags *genericclioptions.ConfigFlags, out io.Writer, version, kubectlVersion string) *cobra.Command {
 	var allContexts bool
 	cmd := &cobra.Command{
@@ -197,7 +197,7 @@ func NewDoctorCommand(flags *genericclioptions.ConfigFlags, out io.Writer, versi
 		Short: "Check kubeconfig, connectivity, kubectl/cluster version skew and the credential plugins each context needs",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			problems := 0
-			fmt.Fprintf(out, "kp %s, embedded kubectl %s, %s/%s, shell %s\n", version, kubectlVersion, runtime.GOOS, runtime.GOARCH, DetectShell())
+			fmt.Fprintf(out, "kdeck %s, embedded kubectl %s, %s/%s, shell %s\n", version, kubectlVersion, runtime.GOOS, runtime.GOARCH, DetectShell())
 			loader := flags.ToRawKubeConfigLoader()
 			raw, err := loader.RawConfig()
 			if err != nil {
@@ -232,7 +232,7 @@ func NewDoctorCommand(flags *genericclioptions.ConfigFlags, out io.Writer, versi
 						}
 					case u.AuthProvider != nil:
 						auth = "auth-provider " + u.AuthProvider.Name
-						status = "REMOVED in kubectl 1.26+: re-fetch credentials (kp gke use / kp aks use --kubelogin)"
+						status = "REMOVED in kubectl 1.26+: re-fetch credentials (kdeck gke use / kdeck aks use --kubelogin)"
 						problems++
 					case u.Token != "" || u.TokenFile != "":
 						auth = "token"
@@ -280,7 +280,7 @@ func NewDoctorCommand(flags *genericclioptions.ConfigFlags, out io.Writer, versi
 			}
 			_ = tw.Flush()
 			if cfg, err := config.Load(); err == nil && cfg.Teleport.Proxy != "" {
-				state := "not logged in (kp tl)"
+				state := "not logged in (kdeck tl)"
 				if teleport.LoggedIn() {
 					state = "logged in"
 				}

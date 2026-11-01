@@ -3,7 +3,7 @@ package workspace
 import (
 	"testing"
 
-	"github.com/lyelgate/kubepilot/internal/match"
+	"github.com/lyelgate/kdeck/internal/match"
 )
 
 func TestParseSide(t *testing.T) {

@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kdeck/internal/config"
 )
 
 var now = time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)

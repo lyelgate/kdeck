@@ -1,7 +1,7 @@
-# GoReleaser v2: builds, packages, signs and publishes kp on every v* tag.
+# GoReleaser v2: builds, packages, signs and publishes kdeck on every v* tag.
 # Run locally without publishing: goreleaser release --snapshot --clean --skip=publish,sign,sbom
 version: 2
-project_name: kp
+project_name: kdeck
 
 before:
   hooks:
@@ -9,24 +9,24 @@ before:
     - go test ./...
 
 builds:
-  - id: kp
-    main: ./cmd/kp
-    binary: kp
+  - id: kdeck
+    main: ./cmd/kdeck
+    binary: kdeck
     env: [CGO_ENABLED=0]
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     flags: [-trimpath]
     ldflags:
-      - -s -w -X github.com/lyelgate/kubepilot/internal/app.Version={{ .Tag }}
+      - -s -w -X github.com/lyelgate/kdeck/internal/app.Version={{ .Tag }}
 
 archives:
-  - id: kp
+  - id: kdeck
     formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
-    # kp update expects exactly this name.
-    name_template: "kp_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # kdeck update expects exactly this name.
+    name_template: "kdeck_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files: [README.md, LICENSE*]
 
 checksum:
@@ -37,7 +37,7 @@ sboms:
 
 # Keyless signing in GitHub Actions (OIDC). Verify with:
 #   cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig \
-#     --certificate-identity-regexp 'github.com/lyelgate/kubepilot' \
+#     --certificate-identity-regexp 'github.com/lyelgate/kdeck' \
 #     --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
 signs:
   - cmd: cosign
@@ -48,57 +48,57 @@ signs:
 
 nfpms:
   - id: packages
-    package_name: kp
-    vendor: kubepilot
-    homepage: https://github.com/lyelgate/kubepilot
+    package_name: kdeck
+    vendor: kdeck
+    homepage: https://github.com/lyelgate/kdeck
     maintainer: Lakhan Yelgate <39281685+lyelgate@users.noreply.github.com>
     description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
     formats: [deb, rpm, apk]
     bindir: /usr/bin
 
 brews:
-  - name: kp
+  - name: kdeck
     repository:
       owner: lyelgate
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
-    homepage: https://github.com/lyelgate/kubepilot
+    homepage: https://github.com/lyelgate/kdeck
     description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
     install: |
-      bin.install "kp"
+      bin.install "kdeck"
     test: |
-      system "#{bin}/kp", "about"
+      system "#{bin}/kdeck", "about"
     skip_upload: auto
 
 scoops:
-  - name: kp
+  - name: kdeck
     repository:
       owner: lyelgate
       name: scoop-bucket
       token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
-    homepage: https://github.com/lyelgate/kubepilot
+    homepage: https://github.com/lyelgate/kdeck
     description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
     skip_upload: auto
 
-# Off until the accounts exist: a krew-index fork (kubectl kp) and a
+# Off until the accounts exist: a krew-index fork (kubectl kdeck) and a
 # winget-pkgs fork. Set skip_upload: false once they do.
 krews:
-  - name: kp
+  - name: kdeck
     repository:
       owner: lyelgate
       name: krew-index
       token: "{{ .Env.KREW_INDEX_TOKEN }}"
-    homepage: https://github.com/lyelgate/kubepilot
+    homepage: https://github.com/lyelgate/kdeck
     short_description: kubectl plus shortcuts, silent-failure checks and cloud helpers
     description: |
-      kp (kubepilot): every kubectl command plus regex shortcuts, stern-style logs,
+      kdeck: every kubectl command plus regex shortcuts, stern-style logs,
       silent-failure detection, production guardrails, multi-cluster commands,
-      EKS/GKE/AKS/LKE and Teleport helpers. Run as "kubectl kp".
+      EKS/GKE/AKS/LKE and Teleport helpers. Run as "kubectl kdeck".
     skip_upload: true
 
 winget:
-  - name: kubepilot
+  - name: kdeck
     publisher: lyelgate
     short_description: kubectl plus shortcuts, silent-failure checks and cloud helpers
     license: TBD

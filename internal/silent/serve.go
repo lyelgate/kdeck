@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 
-	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kdeck/internal/config"
 )
 
 // maxSeries caps finding series; low findings are dropped first.
@@ -68,7 +68,7 @@ func (s *server) track(r *Result, now time.Time) {
 		s.lastSeen[f.Fingerprint] = now
 		if f.Since == nil {
 			t := s.firstSeen[f.Fingerprint]
-			f.Since, f.SinceSource = &t, "first seen by kp silent serve"
+			f.Since, f.SinceSource = &t, "first seen by kdeck silent serve"
 		}
 	}
 	for fp, t := range s.lastSeen {
@@ -137,9 +137,9 @@ func serveCmd(flags *genericclioptions.ConfigFlags, version string) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the checks continuously and serve /metrics (Prometheus), /findings (JSON) and /healthz",
-		Example: `  kp silent serve                         # :9090, every 60s, using your kubeconfig
-  kp silent serve --listen :8080 --interval 2m
-  kp silent manifest | kubectl apply -f -  # run it inside the cluster`,
+		Example: `  kdeck silent serve                         # :9090, every 60s, using your kubeconfig
+  kdeck silent serve --listen :8080 --interval 2m
+  kdeck silent manifest | kubectl apply -f -  # run it inside the cluster`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			interval, err := time.ParseDuration(intervalStr)
 			if err != nil {
@@ -157,7 +157,7 @@ func serveCmd(flags *genericclioptions.ConfigFlags, version string) *cobra.Comma
 				}
 				snap, err := buildSnapshot(flags, ns)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "kp silent serve: %v\n", err)
+					fmt.Fprintf(os.Stderr, "kdeck silent serve: %v\n", err)
 					return
 				}
 				now := time.Now()
@@ -172,7 +172,7 @@ func serveCmd(flags *genericclioptions.ConfigFlags, version string) *cobra.Comma
 				}
 				s.last, s.lastRun, s.truncated = r, now, truncated
 				s.mu.Unlock()
-				fmt.Fprintf(os.Stderr, "kp silent serve: %d findings, %d skipped, %s\n", len(r.Findings), len(r.Skipped), r.Duration)
+				fmt.Fprintf(os.Stderr, "kdeck silent serve: %d findings, %d skipped, %s\n", len(r.Findings), len(r.Skipped), r.Duration)
 			}
 			mux := http.NewServeMux()
 			mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
@@ -218,7 +218,7 @@ func serveCmd(flags *genericclioptions.ConfigFlags, version string) *cobra.Comma
 				defer cancel()
 				_ = srv.Shutdown(sctx)
 			}()
-			fmt.Fprintf(os.Stderr, "kp silent serve: listening on %s, checking every %s\n", listen, interval)
+			fmt.Fprintf(os.Stderr, "kdeck silent serve: listening on %s, checking every %s\n", listen, interval)
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				return err
 			}
@@ -236,9 +236,9 @@ func manifestCmd(version string) *cobra.Command {
 	var sensitive, rule bool
 	cmd := &cobra.Command{
 		Use:   "manifest",
-		Short: "Print Kubernetes YAML to run kp silent serve in the cluster (read-only RBAC, Service, alert rules)",
-		Example: `  kp silent manifest | kubectl apply -f -
-  kp silent manifest --sensitive --prometheus-rule > kp-silent.yaml`,
+		Short: "Print Kubernetes YAML to run kdeck silent serve in the cluster (read-only RBAC, Service, alert rules)",
+		Example: `  kdeck silent manifest | kubectl apply -f -
+  kdeck silent manifest --sensitive --prometheus-rule > kdeck-silent.yaml`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 			tag := version
@@ -246,7 +246,7 @@ func manifestCmd(version string) *cobra.Command {
 				tag = "latest"
 			}
 			if image == "" {
-				image = "ghcr.io/lyelgate/kubepilot:" + tag
+				image = "ghcr.io/lyelgate/kdeck:" + tag
 			}
 			extraArgs := ""
 			extraRules := ""
@@ -267,8 +267,8 @@ func manifestCmd(version string) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&ns, "namespace-name", "kubepilot", "namespace to install into")
-	cmd.Flags().StringVar(&image, "image", "", "container image (default ghcr.io/lyelgate/kubepilot:<version>)")
+	cmd.Flags().StringVar(&ns, "namespace-name", "kdeck", "namespace to install into")
+	cmd.Flags().StringVar(&image, "image", "", "container image (default ghcr.io/lyelgate/kdeck:<version>)")
 	cmd.Flags().BoolVar(&sensitive, "sensitive", false, "also grant Secret list and nodes/proxy (certificate and volume-usage checks)")
 	cmd.Flags().BoolVar(&rule, "prometheus-rule", false, "also print a PrometheusRule (needs the Prometheus Operator)")
 	return cmd
@@ -296,13 +296,13 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: kp-silent
+  name: kdeck-silent
   namespace: %[1]s
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: kp-silent-reader
+  name: kdeck-silent-reader
 rules:
 - apiGroups: ["", "apps", "batch", "autoscaling", "policy", "discovery.k8s.io", "networking.k8s.io",
               "gateway.networking.k8s.io", "admissionregistration.k8s.io", "apiregistration.k8s.io",
@@ -320,37 +320,37 @@ rules:
 - apiGroups: [""]
   resources: [secrets]
   verbs: [list]
-  # metadata only: used for Helm release status labels; Secret data is never read by kp
+  # metadata only: used for Helm release status labels; Secret data is never read by kdeck
 - nonResourceURLs: ["/metrics"]
   verbs: [get]%[4]s
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: kp-silent-reader
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: kp-silent-reader}
-subjects: [{kind: ServiceAccount, name: kp-silent, namespace: %[1]s}]
+  name: kdeck-silent-reader
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: kdeck-silent-reader}
+subjects: [{kind: ServiceAccount, name: kdeck-silent, namespace: %[1]s}]
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kp-silent
+  name: kdeck-silent
   namespace: %[1]s
-  labels: {app.kubernetes.io/name: kp-silent}
+  labels: {app.kubernetes.io/name: kdeck-silent}
 spec:
   replicas: 1
-  selector: {matchLabels: {app.kubernetes.io/name: kp-silent}}
+  selector: {matchLabels: {app.kubernetes.io/name: kdeck-silent}}
   template:
     metadata:
-      labels: {app.kubernetes.io/name: kp-silent}
+      labels: {app.kubernetes.io/name: kdeck-silent}
     spec:
-      serviceAccountName: kp-silent
+      serviceAccountName: kdeck-silent
       securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
       containers:
-      - name: kp
+      - name: kdeck
         image: %[2]s
         args: ["silent", "serve", "--listen", ":9090"%[3]s]
-        env: [{name: KP_HOME, value: /tmp/kp}]
+        env: [{name: KDECK_HOME, value: /tmp/kdeck}]
         ports: [{name: metrics, containerPort: 9090}]
         readinessProbe: {httpGet: {path: /healthz, port: metrics}, periodSeconds: 30}
         resources:
@@ -363,12 +363,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: kp-silent
+  name: kdeck-silent
   namespace: %[1]s
-  labels: {app.kubernetes.io/name: kp-silent}
+  labels: {app.kubernetes.io/name: kdeck-silent}
   annotations: {prometheus.io/scrape: "true", prometheus.io/port: "9090"}
 spec:
-  selector: {app.kubernetes.io/name: kp-silent}
+  selector: {app.kubernetes.io/name: kdeck-silent}
   ports: [{name: metrics, port: 9090, targetPort: metrics}]
 `
 
@@ -376,11 +376,11 @@ const ruleTemplate = `---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: kp-silent
+  name: kdeck-silent
   namespace: %s
 spec:
   groups:
-  - name: kp-silent
+  - name: kdeck-silent
     rules:
     - alert: SilentFailureCritical
       expr: max by (check, namespace, kind, name) (silent_finding{severity="critical"}) == 1

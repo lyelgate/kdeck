@@ -1,4 +1,4 @@
-module github.com/lyelgate/kubepilot
+module github.com/lyelgate/kdeck
 
 go 1.26.0
 

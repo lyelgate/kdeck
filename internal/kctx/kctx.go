@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
@@ -374,7 +375,4 @@ func pick(items []string, current string) (string, bool) {
 	return choice, choice != ""
 }
 
-func isTerminal(f *os.File) bool {
-	st, err := f.Stat()
-	return err == nil && st.Mode()&os.ModeCharDevice != 0
-}
+func isTerminal(f *os.File) bool { return term.IsTerminal(int(f.Fd())) }

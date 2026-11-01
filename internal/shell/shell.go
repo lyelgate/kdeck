@@ -117,6 +117,17 @@ WSL uses the Linux binary with bash or zsh.`,
 					emit(k, "kp "+strings.ReplaceAll(cfg.Aliases[k], "'", ""))
 				}
 			}
+			// kh: switch context for this terminal only (kp here).
+			switch sh {
+			case "bash", "zsh":
+				fmt.Fprintf(out, "kh() { eval \"$(kp here --shell %s \"$@\")\"; }\n", sh)
+			case "fish":
+				fmt.Fprintln(out, "function kh; kp here --shell fish $argv | source; end")
+			case "powershell":
+				fmt.Fprintln(out, "function kh { kp here --shell powershell @args | Out-String | Invoke-Expression }")
+			case "cmd":
+				_, _ = io.WriteString(out, `doskey kh=kp here --shell cmd $* ^> "%TEMP%\kp-here.cmd" $T call "%TEMP%\kp-here.cmd"`+"\n")
+			}
 			switch sh {
 			case "bash":
 				fmt.Fprintf(out, "source <(kp completion bash)\ncomplete -o default -F __start_kp %s\n", name)

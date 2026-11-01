@@ -23,10 +23,49 @@ import (
 type Config struct {
 	// Aliases maps a word to the arguments it expands to, for example
 	// "kgpr": "get pods --field-selector=status.phase=Running".
-	Aliases  map[string]string `json:"aliases,omitempty"`
-	Silent   SilentConfig      `json:"silent,omitempty"`
-	Linode   LinodeConfig      `json:"linode,omitempty"`
-	Teleport TeleportConfig    `json:"teleport,omitempty"`
+	Aliases  map[string]string  `json:"aliases,omitempty"`
+	Silent   SilentConfig       `json:"silent,omitempty"`
+	Linode   LinodeConfig       `json:"linode,omitempty"`
+	Teleport TeleportConfig     `json:"teleport,omitempty"`
+	Safety   SafetyConfig       `json:"safety,omitempty"`
+	Profiles map[string]Profile `json:"profiles,omitempty"`
+	Cost     CostConfig         `json:"cost,omitempty"`
+	Update   UpdateConfig       `json:"update,omitempty"`
+}
+
+// SafetyConfig protects important clusters. Patterns are regexes over
+// context names.
+type SafetyConfig struct {
+	// Production contexts: writes need the context name typed back.
+	Production []string `json:"production,omitempty"`
+	// ReadOnly contexts: writes and execs are refused.
+	ReadOnly []string `json:"readOnly,omitempty"`
+	// DiffBeforeApply shows kubectl diff before apply on production
+	// contexts (default true).
+	DiffBeforeApply *bool `json:"diffBeforeApply,omitempty"`
+}
+
+// Profile switches several things at once with "kp profile NAME".
+type Profile struct {
+	Teleport  string `json:"teleport,omitempty"`  // Teleport kube cluster to log in to first
+	Context   string `json:"context,omitempty"`   // kubeconfig context
+	Namespace string `json:"namespace,omitempty"` // namespace for that context
+}
+
+// CostConfig prices nodes for "kp cost" when the provider is not Linode
+// (Linode prices come from the API).
+type CostConfig struct {
+	// NodePrices maps node.kubernetes.io/instance-type to a monthly price.
+	NodePrices map[string]float64 `json:"nodePrices,omitempty"`
+	// DefaultNodePrice is used for nodes with an unknown instance type.
+	DefaultNodePrice float64 `json:"defaultNodePrice,omitempty"`
+	Currency         string  `json:"currency,omitempty"` // default USD
+}
+
+// UpdateConfig controls "kp update".
+type UpdateConfig struct {
+	// Repo is the GitHub owner/name that publishes releases.
+	Repo string `json:"repo,omitempty"`
 }
 
 // TeleportConfig is set once by "kp setup" or "kp tsh setup"; afterwards the

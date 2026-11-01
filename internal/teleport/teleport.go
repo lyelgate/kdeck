@@ -285,24 +285,7 @@ Anything else: kp tsh -- <tsh arguments>`,
 	cmd.AddCommand(&cobra.Command{
 		Use: "use CLUSTER-REGEX", Aliases: []string{"switch", "kube"}, Short: "Log in to the matching Kubernetes cluster and switch kubectl to it",
 		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := ensureLogin(out); err != nil {
-				return err
-			}
-			cs, err := clusters()
-			if err != nil {
-				return err
-			}
-			name, err := Resolve(cs, args[0])
-			if err != nil {
-				return err
-			}
-			if err := run(out, "kube", "login", name); err != nil {
-				return err
-			}
-			fmt.Fprintf(out, "Switched kubectl to Teleport cluster %q. Try: kp get nodes\n", name)
-			return nil
-		},
+		RunE: func(cmd *cobra.Command, args []string) error { return Use(out, args[0]) },
 	})
 	cmd.AddCommand(&cobra.Command{
 		Use: "status", Short: "tsh status",
@@ -339,4 +322,25 @@ func Resolve(cs []Cluster, pattern string) (string, error) {
 		return hits[0], nil
 	}
 	return "", fmt.Errorf("%d clusters match %q: %s", len(hits), pattern, strings.Join(hits, ", "))
+}
+
+// Use logs in to the Teleport Kubernetes cluster matching pattern (logging
+// in to Teleport first when needed) and switches kubectl to it.
+func Use(out io.Writer, pattern string) error {
+	if err := ensureLogin(out); err != nil {
+		return err
+	}
+	cs, err := clusters()
+	if err != nil {
+		return err
+	}
+	name, err := Resolve(cs, pattern)
+	if err != nil {
+		return err
+	}
+	if err := run(out, "kube", "login", name); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "Switched kubectl to Teleport cluster %q. Try: kp get nodes\n", name)
+	return nil
 }

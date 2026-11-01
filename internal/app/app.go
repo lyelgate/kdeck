@@ -22,6 +22,7 @@ import (
 	"github.com/lyelgate/kubepilot/internal/alias"
 	"github.com/lyelgate/kubepilot/internal/cloud"
 	"github.com/lyelgate/kubepilot/internal/config"
+	"github.com/lyelgate/kubepilot/internal/guard"
 	"github.com/lyelgate/kubepilot/internal/kctx"
 	"github.com/lyelgate/kubepilot/internal/linode"
 	"github.com/lyelgate/kubepilot/internal/plugin"
@@ -30,6 +31,7 @@ import (
 	"github.com/lyelgate/kubepilot/internal/shell"
 	"github.com/lyelgate/kubepilot/internal/silent"
 	"github.com/lyelgate/kubepilot/internal/teleport"
+	"github.com/lyelgate/kubepilot/internal/workspace"
 )
 
 // Version is set at build time with -ldflags "-X .../internal/app.Version=v0.1.0".
@@ -47,12 +49,31 @@ func Run(argv []string) int {
 		args = append([]string{base}, args...)
 	}
 
+	if len(args) > 0 && args[0] == "prompt" && !hasArg(args, "--help", "-h") {
+		format, color := "%c/%n", true
+		for i := 1; i < len(args); i++ {
+			switch {
+			case args[i] == "--no-color":
+				color = false
+			case args[i] == "--format" && i+1 < len(args):
+				format = args[i+1]
+				i++
+			case strings.HasPrefix(args[i], "--format="):
+				format = strings.TrimPrefix(args[i], "--format=")
+			}
+		}
+		fmt.Println(workspace.Prompt(format, color))
+		return 0
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: ignoring %s: %v\n", config.Path("config.yaml"), err)
 		cfg = &config.Config{}
 	}
 	addToPath(plugin.BinDirs()...)
+
+	kf, args := extractKPFlags(args)
 
 	// Expand shortcuts against the real command names, then hand the
 	// expanded arguments to kubectl's constructor (kubectl's own kuberc
@@ -62,6 +83,31 @@ func Run(argv []string) int {
 	if used != "" && os.Getenv("KP_DEBUG_ALIAS") != "" {
 		fmt.Fprintf(os.Stderr, "kp: %s -> %s\n", used, strings.Join(expanded, " "))
 	}
+	if kf.contexts != "" && os.Getenv("KP_MULTI_CHILD") == "" {
+		return runMulti(cfg, kf, expanded)
+	}
+	entry, gerr := guardCommand(cfg, kf, expanded)
+	if gerr != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", gerr)
+		return 1
+	}
+	record := func(code int) {
+		if entry != nil {
+			entry.Exit = code
+			guard.Record(*entry)
+		}
+	}
+	// kubectl commands exit through this hook on fatal errors; record first.
+	cmdutil.BehaviorOnFatal(func(msg string, code int) {
+		record(code)
+		if len(msg) > 0 {
+			if !strings.HasSuffix(msg, "\n") {
+				msg += "\n"
+			}
+			fmt.Fprint(os.Stderr, msg)
+		}
+		os.Exit(code)
+	})
 	os.Args = append([]string{argv[0]}, expanded...)
 
 	root, streams, flags := build(os.Args)
@@ -86,12 +132,25 @@ func Run(argv []string) int {
 	if err := cli.RunNoErrOutput(root); err != nil {
 		var exit silent.ExitError
 		if errors.As(err, &exit) {
+			record(exit.Code)
 			return exit.Code
 		}
-		cmdutil.CheckErr(err) // prints kubectl-style and exits
+		cmdutil.CheckErr(err) // prints kubectl-style and exits via the hook above
 		return 1
 	}
+	record(0)
 	return 0
+}
+
+func hasArg(args []string, names ...string) bool {
+	for _, a := range args {
+		for _, n := range names {
+			if a == n {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func firstWord(args []string) string {
@@ -158,6 +217,12 @@ Run "kp shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
 		plugin.NewCommand(out),
 		linode.NewCommand(flags, out),
 		teleport.NewCommand(out),
+		workspace.SafetyCommand(flags, out),
+		workspace.HistoryCommand(out),
+		workspace.HereCommand(out),
+		workspace.PromptCommand(out),
+		workspace.ProfileCommand(flags, out),
+		workspace.CompareCommand(flags, out),
 		setup.NewSetupCommand(out),
 		setup.NewDoctorCommand(flags, out, Version, kubectlVersion()),
 		shell.AliasCommand(out),

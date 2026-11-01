@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -33,10 +34,7 @@ case, a pattern with an upper-case letter matches case exactly.
   api|worker     either
   ^db-[0-9]+$    db-0, db-1, ... exactly`
 
-func isTTY(f *os.File) bool {
-	st, err := f.Stat()
-	return err == nil && st.Mode()&os.ModeCharDevice != 0
-}
+func isTTY(f *os.File) bool { return term.IsTerminal(int(f.Fd())) }
 
 // matchingPods lists pods whose name matches pattern, running and ready first.
 func matchingPods(d Deps, cmd *cobra.Command, pattern string, all bool, selector string) ([]corev1.Pod, error) {

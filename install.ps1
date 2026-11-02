@@ -4,7 +4,16 @@
 $ErrorActionPreference = "Stop"
 $repo = if ($env:KDECK_REPO) { $env:KDECK_REPO } else { "lyelgate/kdeck" }
 $arch = switch ($env:PROCESSOR_ARCHITECTURE) { "ARM64" { "arm64" } default { "amd64" } }
-$version = if ($env:KDECK_VERSION) { $env:KDECK_VERSION } else { (Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest").tag_name }
+# The latest-release page redirects to .../releases/tag/<tag>; unlike the API it
+# has no per-IP limit for anonymous use.
+$version = if ($env:KDECK_VERSION) { $env:KDECK_VERSION } else {
+    $req = [System.Net.HttpWebRequest]::Create("https://github.com/$repo/releases/latest")
+    $req.AllowAutoRedirect = $false
+    $resp = $req.GetResponse()
+    $loc = $resp.Headers["Location"]
+    $resp.Close()
+    $loc.Substring($loc.LastIndexOf("/") + 1)
+}
 $file = "kdeck_$($version.TrimStart('v'))_windows_$arch.zip"
 $base = "https://github.com/$repo/releases/download/$version"
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("kdeck-" + [Guid]::NewGuid())

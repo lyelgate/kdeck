@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -50,5 +52,26 @@ func TestChecksumAndExtract(t *testing.T) {
 	got, err := extractBinary(buf.Bytes(), name)
 	if err != nil || string(got) != "binary" {
 		t.Fatalf("extract %q %v", got, err)
+	}
+}
+
+func TestLatestByRedirect(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/o/r/releases/latest" {
+			http.Redirect(w, r, "/o/r/releases/tag/v1.2.3", http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+	r, err := latestByRedirect(srv.URL, "o/r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Tag != "v1.2.3" || len(r.Assets) != 2 || r.Assets[1].URL != srv.URL+"/o/r/releases/download/v1.2.3/checksums.txt" {
+		t.Fatalf("%+v", r)
+	}
+	if _, err := latestByRedirect(srv.URL, "x/y"); err == nil {
+		t.Error("no redirect should fail")
 	}
 }

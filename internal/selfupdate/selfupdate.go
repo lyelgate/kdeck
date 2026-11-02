@@ -31,12 +31,14 @@ import (
 // DefaultRepo publishes kdeck releases unless update.repo is set.
 const DefaultRepo = "lyelgate/kdeck"
 
+type asset struct {
+	Name string `json:"name"`
+	URL  string `json:"browser_download_url"`
+}
+
 type release struct {
-	Tag    string `json:"tag_name"`
-	Assets []struct {
-		Name string `json:"name"`
-		URL  string `json:"browser_download_url"`
-	} `json:"assets"`
+	Tag    string  `json:"tag_name"`
+	Assets []asset `json:"assets"`
 }
 
 var client = &http.Client{Timeout: 5 * time.Minute}
@@ -48,22 +50,54 @@ func apiBase() string {
 	return "https://api.github.com"
 }
 
+// latest asks the GitHub API for the newest release. The API allows 60
+// anonymous calls an hour per IP address, which a shared office or CI address
+// uses up, so on failure it falls back to the release page redirect.
 func latest(repo string) (*release, error) {
 	req, _ := http.NewRequest("GET", apiBase()+"/repos/"+repo+"/releases/latest", nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := client.Do(req)
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			var r release
+			if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+				return nil, err
+			}
+			return &r, nil
+		}
+		err = fmt.Errorf("checking %s releases: %s", repo, resp.Status)
+	}
+	if os.Getenv("KDECK_UPDATE_URL") == "" {
+		if r, rerr := latestByRedirect("https://github.com", repo); rerr == nil {
+			return r, nil
+		}
+	}
+	return nil, err
+}
+
+// latestByRedirect reads the tag from <web>/<repo>/releases/latest, which
+// redirects to .../releases/tag/<tag>, and builds the download URLs of the
+// two assets kdeck update needs.
+func latestByRedirect(web, repo string) (*release, error) {
+	c := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := c.Get(web + "/" + repo + "/releases/latest")
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("checking %s releases: %s", repo, resp.Status)
+	resp.Body.Close()
+	loc := resp.Header.Get("Location")
+	i := strings.LastIndex(loc, "/releases/tag/")
+	if i < 0 {
+		return nil, fmt.Errorf("no release redirect for %s (%s)", repo, resp.Status)
 	}
-	var r release
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return nil, err
+	tag := loc[i+len("/releases/tag/"):]
+	base := web + "/" + repo + "/releases/download/" + tag + "/"
+	r := &release{Tag: tag}
+	for _, n := range []string{ArchiveName(tag, runtime.GOOS, runtime.GOARCH), "checksums.txt"} {
+		r.Assets = append(r.Assets, asset{n, base + n})
 	}
-	return &r, nil
+	return r, nil
 }
 
 // Newer reports whether tag is newer than current ("dev" is always older).

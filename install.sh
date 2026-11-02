@@ -11,7 +11,9 @@ case "$(uname -m)" in
   arm64|aarch64) ARCH=arm64 ;;
   *) echo "unsupported CPU $(uname -m)"; exit 1 ;;
 esac
-VERSION=${KDECK_VERSION:-$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)}
+# The latest-release page redirects to .../releases/tag/<tag>; unlike the API it
+# has no per-IP limit for anonymous use.
+VERSION=${KDECK_VERSION:-$(curl -fsSI "https://github.com/$REPO/releases/latest" | tr -d '\r' | sed -n 's|^[Ll]ocation: .*/releases/tag/||p' | head -1)}
 [ -n "$VERSION" ] || { echo "could not find the latest release of $REPO"; exit 1; }
 FILE="kdeck_${VERSION#v}_${OS}_${ARCH}.tar.gz"
 BASE="https://github.com/$REPO/releases/download/$VERSION"

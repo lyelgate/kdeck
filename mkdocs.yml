@@ -1,0 +1,42 @@
+# Documentation site (https://lyelgate.github.io/kdeck/). The pages are built
+# from README.md and docs/SHORTCUTS.md by hack/docs-site.py; edit those.
+site_name: kdeck
+site_description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
+site_url: https://lyelgate.github.io/kdeck/
+repo_url: https://github.com/lyelgate/kdeck
+repo_name: lyelgate/kdeck
+docs_dir: site-docs
+edit_uri: ""
+copyright: MIT licence
+theme:
+  name: material
+  features: [navigation.sections, navigation.top, content.code.copy, search.suggest, search.highlight]
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle: {icon: material/weather-sunny, name: Light mode}
+markdown_extensions:
+  - toc: {permalink: true}
+  - admonition
+  - tables
+  - pymdownx.superfences
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Guide:
+      - Shortcuts and aliases: shortcuts.md
+      - Everyday commands: commands.md
+      - Silent-failure detection: silent.md
+      - Plugins, clouds and Teleport: clouds.md
+      - Production safety: safety.md
+      - Setup and configuration: setup.md
+  - Shortcut reference: reference.md
+  - Development: development.md
+validation:
+  anchors: warn
+  unrecognized_links: warn

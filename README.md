@@ -12,6 +12,8 @@ kdeck plugin install neat           # krew plugins without krew
 kdeck linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubectl
 ```
 
+**Documentation:** <https://lyelgate.github.io/kdeck/> · **Licence:** MIT
+
 - [Install](#install)
 - [Quick start](#quick-start)
 - [kubectl, built in](#kubectl-built-in)
@@ -34,27 +36,34 @@ kdeck linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubec
 - [Many clusters](#many-clusters)
 - [Troubleshooting](#troubleshooting)
 - [Cost](#cost)
-- [Install, update, settings](#install-update-settings)
+- [Update and settings](#update-and-settings)
 - [Shell integration](#shell-integration)
 - [Configuration reference](#configuration-reference)
 - [Security notes](#security-notes)
 - [Development](#development)
 - [Limitations and roadmap](#limitations-and-roadmap)
+- [License](#license)
 
 ## Install
 
-Requires Go 1.26 or newer to build. The binary is about 65 MB (stripped) because it contains all of kubectl.
+| Platform | Command |
+| --- | --- |
+| macOS, Linux (script) | `curl -fsSL https://raw.githubusercontent.com/lyelgate/kdeck/main/install.sh \| sh` (checksum-verified) |
+| Debian, Ubuntu | `curl -fLO https://github.com/lyelgate/kdeck/releases/download/v0.1.0/kdeck_0.1.0_linux_amd64.deb && sudo apt install ./kdeck_0.1.0_linux_amd64.deb` |
+| Fedora, RHEL, Rocky, Amazon Linux | `sudo dnf install https://github.com/lyelgate/kdeck/releases/download/v0.1.0/kdeck_0.1.0_linux_amd64.rpm` |
+| Alpine | `apk add --allow-untrusted kdeck_0.1.0_linux_amd64.apk` (from the release page) |
+| Windows (PowerShell) | `irm https://raw.githubusercontent.com/lyelgate/kdeck/main/install.ps1 \| iex` |
+| Container | `docker run --rm ghcr.io/lyelgate/kdeck about` |
+| Homebrew, Scoop | Coming: `brew install lyelgate/tap/kdeck` and the `lyelgate` Scoop bucket are not published yet |
+
+Every [release](https://github.com/lyelgate/kdeck/releases) has archives for Linux, macOS and Windows on amd64 and arm64 (`kdeck_<version>_<os>_<arch>.tar.gz`, `.zip` on Windows), `.deb`, `.rpm` and `.apk` packages for both CPUs (use `arm64` in the file name on ARM), `checksums.txt` signed with cosign, and an SBOM per archive. The Linux packages install shell completion for bash, zsh and fish. A macOS binary downloaded with a browser is quarantined by Gatekeeper; clear it with `xattr -d com.apple.quarantine kdeck`, or install with the script.
+
+Then run `kdeck setup`. To build from source (Go 1.26 or newer; the binary is about 65 MB because it contains all of kubectl):
 
 ```sh
-git clone <this repo> kdeck && cd kdeck
+git clone https://github.com/lyelgate/kdeck && cd kdeck
 make install            # builds and copies kdeck to ~/go/bin (or set PREFIX)
-kdeck about                # version, embedded kubectl version, home directory
-```
-
-Cross-compile release binaries for Linux, macOS and Windows (amd64 and arm64):
-
-```sh
-make dist VERSION=v0.1.0   # writes dist/kdeck-<os>-<arch>[.exe]
+kdeck about             # version, embedded kubectl version, home directory
 ```
 
 ## Quick start
@@ -488,19 +497,11 @@ This is wider than kubectl's own policy (one minor either side). kdeck only call
 - `kdeck linode leftovers [--k8s-contexts re]`: unattached volumes and NodeBalancers that no LoadBalancer Service in the given contexts points at, with monthly cost.
 - `kdeck linode lke upgrade ID [--version] --yes`, `kdeck linode lke recycle ID [--pool] --yes`, `kdeck linode lke autoscale ID POOL --min --max --yes`, `kdeck linode firewalls`.
 
-## Install, update, settings
-
-| Platform | Command |
-| --- | --- |
-| Linux, macOS | `curl -fsSL https://raw.githubusercontent.com/lyelgate/kdeck/main/install.sh \| sh` (checksum-verified) |
-| Windows | `irm https://raw.githubusercontent.com/lyelgate/kdeck/main/install.ps1 \| iex` |
-| Homebrew / Scoop | `brew install lyelgate/tap/kdeck` / `scoop bucket add lyelgate https://github.com/lyelgate/scoop-bucket; scoop install kdeck` |
-| Linux packages | `.deb`, `.rpm`, `.apk` on each release |
-| Container | `ghcr.io/lyelgate/kdeck` (in-cluster `kdeck silent serve`) |
+## Update and settings
 
 `kdeck update [--check]` replaces the binary with the latest release after verifying its sha256 (Homebrew installs: `brew upgrade kdeck`). `kdeck settings export > kdeck.yaml` and `kdeck settings import kdeck.yaml` carry aliases, safety rules, profiles, Teleport, silent tuning and cost prices to another machine; kdeck stores no tokens.
 
-Releases are built by `.goreleaser.yaml` on a `v*` tag (`.github/workflows/release.yml`): six binaries, archives, checksums, SBOM, cosign keyless signatures, Homebrew, Scoop, Linux packages and the image. CI (`.github/workflows/ci.yml`) runs unit tests on Linux, macOS and Windows, cross-builds every target, and runs `hack/e2e.sh` on kind. Renovate groups the `k8s.io/*` modules so kubectl updates land as one PR.
+Releases are built by `.goreleaser.yaml` on a `v*` tag (`.github/workflows/release.yml`): six binaries, archives, checksums, SBOM, cosign keyless signatures, Linux packages and the image (Homebrew and Scoop once their repositories exist). CI (`.github/workflows/ci.yml`) runs unit tests on Linux, macOS and Windows, builds every release package with GoReleaser and installs the `.deb`, `.rpm` and `.apk` in Debian, Rocky Linux and Alpine, and runs `hack/e2e.sh` on kind. Renovate groups the `k8s.io/*` modules so kubectl updates land as one PR.
 
 ## Shell integration
 
@@ -582,3 +583,7 @@ internal/config/      ~/.kdeck config and state
 - `kdeck plugin install` has been tested with unit tests and a live index download, but no real plugin was installed during development.
 - Linode commands were tested against a local mock of the API, not a real account.
 - The binary is large (about 65 MB stripped, 98 MB unstripped) because it contains kubectl.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

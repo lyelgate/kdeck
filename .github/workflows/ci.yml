@@ -24,18 +24,30 @@ jobs:
       - run: go test ./...
       - run: go build -o bin/ ./cmd/kdeck
 
-  cross-build:
+  # The release pipeline without publishing: every binary, archive and Linux
+  # package, then the .deb, .rpm and .apk installed in their distributions.
+  packages:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: build all release targets
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish,sign,sbom
+        env:
+          HOMEBREW_TAP_DEPLOY_KEY: unused
+          SCOOP_BUCKET_DEPLOY_KEY: unused
+      - name: install the packages
         run: |
-          for p in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-            GOOS=${p%/*} GOARCH=${p#*/} CGO_ENABLED=0 go build -o /dev/null ./cmd/kdeck
-          done
+          check='kdeck about && kdeck alias explain kgpo && test -f /usr/share/bash-completion/completions/kdeck'
+          docker run --rm -v "$PWD/dist:/d" debian:stable-slim sh -c "dpkg -i /d/kdeck_*_linux_amd64.deb && $check"
+          docker run --rm -v "$PWD/dist:/d" rockylinux:9-minimal sh -c "rpm -i /d/kdeck_*_linux_amd64.rpm && $check"
+          docker run --rm -v "$PWD/dist:/d" alpine:3 sh -c "apk add --allow-untrusted /d/kdeck_*_linux_amd64.apk && $check"
 
   e2e:
     name: e2e (Kubernetes ${{ matrix.node }})

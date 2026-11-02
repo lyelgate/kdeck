@@ -7,6 +7,7 @@ before:
   hooks:
     - go mod download
     - go test ./...
+    - sh hack/completions.sh
 
 builds:
   - id: kdeck
@@ -27,7 +28,7 @@ archives:
         formats: [zip]
     # kdeck update expects exactly this name.
     name_template: "kdeck_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files: [README.md, LICENSE*]
+    files: [README.md, LICENSE, completions/*]
 
 checksum:
   name_template: checksums.txt
@@ -53,33 +54,59 @@ nfpms:
     homepage: https://github.com/lyelgate/kdeck
     maintainer: Lakhan Yelgate <39281685+lyelgate@users.noreply.github.com>
     description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
+    license: MIT
     formats: [deb, rpm, apk]
     bindir: /usr/bin
+    contents:
+      - src: completions/kdeck.bash
+        dst: /usr/share/bash-completion/completions/kdeck
+      - src: completions/kdeck.zsh
+        dst: /usr/share/zsh/vendor-completions/_kdeck
+      - src: completions/kdeck.fish
+        dst: /usr/share/fish/vendor_completions.d/kdeck.fish
+      - src: LICENSE
+        dst: /usr/share/doc/kdeck/copyright
+        file_info: {mode: 0644}
 
+# The tap and the bucket are pushed over SSH with a deploy key that can write
+# only to that one repository (secrets HOMEBREW_TAP_DEPLOY_KEY and
+# SCOOP_BUCKET_DEPLOY_KEY), so no personal token is stored. Uploads are off
+# until those repositories and secrets exist; then set skip_upload: auto.
 brews:
   - name: kdeck
     repository:
       owner: lyelgate
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      branch: main
+      git:
+        url: git@github.com:lyelgate/homebrew-tap.git
+        private_key: "{{ .Env.HOMEBREW_TAP_DEPLOY_KEY }}"
     directory: Formula
     homepage: https://github.com/lyelgate/kdeck
     description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
+    license: MIT
     install: |
       bin.install "kdeck"
+      bash_completion.install "completions/kdeck.bash" => "kdeck"
+      zsh_completion.install "completions/kdeck.zsh" => "_kdeck"
+      fish_completion.install "completions/kdeck.fish"
     test: |
       system "#{bin}/kdeck", "about"
-    skip_upload: auto
+    skip_upload: true
 
 scoops:
   - name: kdeck
     repository:
       owner: lyelgate
       name: scoop-bucket
-      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+      branch: main
+      git:
+        url: git@github.com:lyelgate/scoop-bucket.git
+        private_key: "{{ .Env.SCOOP_BUCKET_DEPLOY_KEY }}"
     homepage: https://github.com/lyelgate/kdeck
     description: kubectl plus shortcuts, silent-failure checks, plugins, cloud and Teleport helpers in one binary
-    skip_upload: auto
+    license: MIT
+    skip_upload: true
 
 # Off until the accounts exist: a krew-index fork (kubectl kdeck) and a
 # winget-pkgs fork. Set skip_upload: false once they do.
@@ -101,7 +128,7 @@ winget:
   - name: kdeck
     publisher: lyelgate
     short_description: kubectl plus shortcuts, silent-failure checks and cloud helpers
-    license: TBD
+    license: MIT
     repository:
       owner: lyelgate
       name: winget-pkgs

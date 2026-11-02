@@ -31,6 +31,15 @@ type Config struct {
 	Profiles map[string]Profile `json:"profiles,omitempty"`
 	Cost     CostConfig         `json:"cost,omitempty"`
 	Update   UpdateConfig       `json:"update,omitempty"`
+	// Kubeconfig decides where new clusters go.
+	Kubeconfig KubeconfigConfig `json:"kubeconfig,omitempty"`
+}
+
+// KubeconfigConfig: "separate" (the default) keeps one kubeconfig file per
+// cluster in ~/.kdeck/kubeconfigs; "merge" merges new clusters into the main
+// kubeconfig as kubectl does.
+type KubeconfigConfig struct {
+	Mode string `json:"mode,omitempty"`
 }
 
 // SafetyConfig protects important clusters. Patterns are regexes over

@@ -212,10 +212,10 @@ func lkeCmd(o *opts) *cobra.Command {
 	kc := &cobra.Command{
 		Use:     "kubeconfig ID",
 		Aliases: []string{"kc", "creds"},
-		Short:   "Fetch a cluster's kubeconfig: print it, write it, or merge it into ~/.kube/config",
+		Short:   "Fetch a cluster's kubeconfig: print it, write it, or add it (--merge: own file in ~/.kdeck/kubeconfigs, or merged in merge mode)",
 		Example: `  kdeck linode lke kubeconfig 12345                          # print to stdout
   kdeck linode lke kubeconfig 12345 -f lke.yaml
-  kdeck linode lke kubeconfig 12345 --merge --set-current     # backup + merge + switch`,
+  kdeck linode lke kubeconfig 12345 --merge --set-current     # add + switch`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := atoi(args[0], "cluster ID")
@@ -250,7 +250,11 @@ func lkeCmd(o *opts) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(o.out, "Merged cluster %s as context %q into %s (backup: %s).\n", k.Label, name, path, backup)
+				fmt.Fprintf(o.out, "Added cluster %s as context %q in %s", k.Label, name, path)
+				if backup != "" {
+					fmt.Fprintf(o.out, " (backup: %s)", backup)
+				}
+				fmt.Fprintln(o.out, ".")
 				if setCurrent {
 					fmt.Fprintf(o.out, "Current context is now %q. Try: kdeck get nodes\n", name)
 				}
@@ -267,7 +271,7 @@ func lkeCmd(o *opts) *cobra.Command {
 			}
 		},
 	}
-	kc.Flags().BoolVar(&merge, "merge", false, "merge into your kubeconfig (a backup is written first)")
+	kc.Flags().BoolVar(&merge, "merge", false, "add to your kubeconfigs (own file in ~/.kdeck/kubeconfigs; merged after a backup in merge mode)")
 	kc.Flags().BoolVar(&setCurrent, "set-current", false, "with --merge, switch to the new context")
 	kc.Flags().StringVarP(&outFile, "file", "f", "", "write to this file instead of stdout")
 	kc.Flags().StringVar(&ctxName, "context-name", "", "context name for --merge (default lke-<label>)")

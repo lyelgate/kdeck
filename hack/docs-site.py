@@ -18,7 +18,7 @@ PAGES = [
     ("index.md", "kdeck", ["Quick start"]),
     ("install.md", "Install", ["Install", "Shell integration", "Update and settings", "Platforms"]),
     ("shortcuts.md", "Shortcuts and aliases", ["Shortcuts and aliases", "Regex everywhere", "One pod by regex: `dklog abc`", "Port-forward shortcuts: `kdeck pf`"]),
-    ("commands.md", "Everyday commands", ["kubectl, built in", "Contexts and namespaces", "Everyday helpers", "Stern-style logs: `kdeck tail` (also `kdeck stern`)", "Troubleshooting", "Many clusters"]),
+    ("commands.md", "Everyday commands", ["kubectl, built in", "Contexts and namespaces", "Per-cluster kubeconfigs", "Everyday helpers", "Stern-style logs: `kdeck tail` (also `kdeck stern`)", "Troubleshooting", "Many clusters"]),
     ("silent.md", "Silent-failure detection", ["Silent-failure detection (`kdeck silent`)"]),
     ("clouds.md", "Plugins, clouds and Teleport", ["Plugins (krew-compatible)", "Linode LKE", "Clusters on AWS, Google Cloud and Azure", "Teleport plugin (`tsh`)", "Cost"]),
     ("safety.md", "Production safety", ["Production safety", "Security notes"]),

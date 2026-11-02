@@ -65,11 +65,16 @@ var Verbs = map[string][]string{
 	"can":  {"auth", "can-i"},
 	"canl": {"auth", "can-i", "--list"},
 	// Teleport plugin.
-	"tl":  {"tsh", "login"},
-	"tls": {"tsh", "ls"},
-	"tu":  {"tsh", "use"},
-	"ts":  {"tsh", "status"},
-	"tlo": {"tsh", "logout"},
+	"tl":      {"tsh", "login"},
+	"tls":     {"tsh", "ls"},
+	"tu":      {"tsh", "use"},
+	"ts":      {"tsh", "status"},
+	"tlo":     {"tsh", "logout"},
+	"treq":    {"tsh", "request"},
+	"treqs":   {"tsh", "request", "ls"},
+	"tassume": {"tsh", "request", "assume"},
+	"tdrop":   {"tsh", "drop"},
+	"tcl":     {"tsh", "clusters"},
 }
 
 // VerbHelp describes each verb alias, for "kdeck alias list".

@@ -99,7 +99,7 @@ func NewCtxCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.C
 	var importCurrent bool
 	imp := &cobra.Command{
 		Use:   "import FILE",
-		Short: "Merge a kubeconfig file into yours (backup first; entries renamed so nothing is overwritten)",
+		Short: "Add a kubeconfig file as its own file in ~/.kdeck/kubeconfigs (or merged, backup first, in merge mode)",
 		Example: `  kdeck ctx import ~/Downloads/staging.yaml --name staging --set-current
   kdeck ctx import vendor-kubeconfig.yaml`,
 		Args: cobra.ExactArgs(1),
@@ -120,7 +120,7 @@ func NewCtxCommand(flags *genericclioptions.ConfigFlags, out io.Writer) *cobra.C
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(out, "Imported %s as context %q into %s", args[0], name, path)
+			fmt.Fprintf(out, "Imported %s as context %q in %s", args[0], name, path)
 			if backup != "" {
 				fmt.Fprintf(out, " (backup: %s)", backup)
 			}

@@ -222,7 +222,7 @@ func NewCommands(cfgFlags *genericclioptions.ConfigFlags, out io.Writer) []*cobr
 		var kubelogin bool
 		use := &cobra.Command{
 			Use: "use CLUSTER-REGEX", Aliases: []string{"connect", "kubeconfig", "login"},
-			Short: "Add the cluster to your kubeconfig (backup first) and switch to it",
+			Short: "Add the cluster as its own kubeconfig in ~/.kdeck/kubeconfigs (merge mode: into your kubeconfig, backup first) and switch to it",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				cs, err := filtered(p, vals(), nil)
@@ -233,9 +233,21 @@ func NewCommands(cfgFlags *genericclioptions.ConfigFlags, out io.Writer) []*cobr
 				if err != nil {
 					return err
 				}
-				path := kubeconfig.Path(cfgFlags)
-				backup, err := kubeconfig.Backup(path)
-				if err != nil {
+				// Separate mode: the provider CLI writes a fresh file of its
+				// own in the store; otherwise it merges into the kubeconfig.
+				separate := kubeconfig.Separate() && (cfgFlags.KubeConfig == nil || *cfgFlags.KubeConfig == "")
+				path, backup := kubeconfig.Path(cfgFlags), ""
+				if separate {
+					label := name
+					if label == "" {
+						label = c.Name
+					}
+					path = kubeconfig.FileFor(label)
+					if err := os.MkdirAll(kubeconfig.Dir(), 0o700); err != nil {
+						return err
+					}
+					_ = os.Remove(path)
+				} else if backup, err = kubeconfig.Backup(path); err != nil {
 					return err
 				}
 				before := contexts(path)
@@ -256,9 +268,26 @@ func NewCommands(cfgFlags *genericclioptions.ConfigFlags, out io.Writer) []*cobr
 					}
 					added = name
 				}
+				if separate {
+					current, _, err := kubeconfig.NormalizeFile(path)
+					if err != nil {
+						return err
+					}
+					if added == "" {
+						added = current
+					}
+					if added != "" {
+						if err := kubeconfig.SetCurrent(added); err != nil {
+							return err
+						}
+					}
+				}
 				fmt.Fprintf(out, "Connected %s %q", titles[key], c.Name)
 				if added != "" {
 					fmt.Fprintf(out, " as context %q", added)
+				}
+				if separate {
+					fmt.Fprintf(out, " in %s", path)
 				}
 				if backup != "" {
 					fmt.Fprintf(out, " (backup: %s)", backup)

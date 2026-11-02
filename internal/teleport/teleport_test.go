@@ -28,3 +28,18 @@ func TestParseKubeLSAndResolve(t *testing.T) {
 		t.Error("no match should fail")
 	}
 }
+
+func TestParseSearch(t *testing.T) {
+	data := []byte(`[
+	  {"kind": "kube_cluster", "metadata": {"name": "prod-eu", "labels": {"env": "prod"}}},
+	  {"kube_cluster_name": "prod-us"},
+	  {"kind": "kube_cluster", "metadata": {}}
+	]`)
+	names, err := ParseSearch(data)
+	if err != nil || len(names) != 2 || names[0] != "prod-eu" || names[1] != "prod-us" {
+		t.Fatalf("%v %v", names, err)
+	}
+	if _, err := ParseSearch([]byte("not json")); err == nil {
+		t.Error("bad json should fail")
+	}
+}

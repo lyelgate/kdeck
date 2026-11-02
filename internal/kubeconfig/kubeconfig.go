@@ -34,9 +34,21 @@ func Backup(path string) (string, error) {
 	return backup, nil
 }
 
-// Merge adds raw (a kubeconfig document) to the user's kubeconfig under the
-// context name, backing the file up first. It returns the file and backup.
+// Merge adds raw (a kubeconfig document) under the context name: as its own
+// file in the store (the default), or merged into the user's kubeconfig after
+// a backup when the mode is "merge" or --kubeconfig names a file. It returns
+// the file written and the backup ("" when none was needed).
 func Merge(flags *genericclioptions.ConfigFlags, raw []byte, name string, setCurrent bool) (string, string, error) {
+	if Separate() && (flags.KubeConfig == nil || *flags.KubeConfig == "") {
+		path, err := Store(raw, name)
+		if err != nil {
+			return "", "", err
+		}
+		if setCurrent {
+			err = SetCurrent(name)
+		}
+		return path, "", err
+	}
 	incoming, err := clientcmd.Load(raw)
 	if err != nil {
 		return "", "", fmt.Errorf("parsing kubeconfig: %w", err)

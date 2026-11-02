@@ -16,6 +16,7 @@ import (
 
 	"github.com/lyelgate/kdeck/internal/alias"
 	"github.com/lyelgate/kdeck/internal/config"
+	"github.com/lyelgate/kdeck/internal/kubeconfig"
 	"github.com/lyelgate/kdeck/internal/match"
 	"github.com/lyelgate/kdeck/internal/quick"
 )
@@ -146,6 +147,7 @@ WSL uses the Linux binary with bash or zsh.`,
 			case "cmd":
 				_, _ = io.WriteString(out, `doskey kh=kdeck here --shell cmd $* ^> "%TEMP%\kdeck-here.cmd" $T call "%TEMP%\kdeck-here.cmd"`+"\n")
 			}
+			writeKubeconfigHook(out, sh, kubeconfig.Dir())
 			switch sh {
 			case "bash":
 				fmt.Fprintf(out, "source <(kdeck completion bash)\ncomplete -o default -F __start_kdeck %s\n", name)
@@ -356,4 +358,63 @@ func ShortcutsCommand(out io.Writer) *cobra.Command {
 	install.Flags().BoolVar(&all, "all", false, "link every valid combination")
 	cmd.AddCommand(install)
 	return cmd
+}
+
+// writeKubeconfigHook keeps KUBECONFIG in the shell equal to what kdeck uses:
+// the entries already there (kh session first, then the main kubeconfig)
+// followed by every file in the per-cluster store. It runs before each
+// prompt, in the shell itself, and rebuilds only when the store's file list
+// changed, so kubectl, helm and k9s see a cluster added by "kdeck tu" at once.
+// PowerShell and cmd.exe get the list once, at start-up.
+func writeKubeconfigHook(out io.Writer, sh, dir string) {
+	switch sh {
+	case "bash", "zsh":
+		q := strings.ReplaceAll(dir, "'", "'\\''")
+		glob := `"$d"/*.yaml`
+		if sh == "zsh" {
+			glob = `"$d"/*.yaml(N)`
+		}
+		fmt.Fprintf(out, `_kdeck_kc_sync() {
+  local d='%s' f list="" rest kept="" p
+  [ -d "$d" ] || return 0
+  for f in %s; do [ -e "$f" ] && list="$list:$f"; done
+  [ "$list" = "${_KDECK_KC_LIST-}" ] && return 0
+  _KDECK_KC_LIST=$list
+  rest="${KUBECONFIG:-$HOME/.kube/config}:"
+  while [ -n "$rest" ]; do
+    p="${rest%%%%:*}"; rest="${rest#*:}"
+    case "$p" in ""|"$d"/*) ;; *) kept="$kept${kept:+:}$p" ;; esac
+  done
+  export KUBECONFIG="$kept$list"
+}
+_kdeck_kc_sync
+`, q, glob)
+		if sh == "zsh" {
+			fmt.Fprintln(out, "autoload -Uz add-zsh-hook && add-zsh-hook precmd _kdeck_kc_sync")
+		} else {
+			fmt.Fprintln(out, `case ";${PROMPT_COMMAND-};" in *";_kdeck_kc_sync;"*) ;; *) PROMPT_COMMAND="_kdeck_kc_sync${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;; esac`)
+		}
+	case "fish":
+		fmt.Fprintf(out, `function _kdeck_kc_sync --on-event fish_prompt
+  set -l d '%s'
+  test -d $d; or return 0
+  set -l files $d/*.yaml
+  set -l list (string join : $files)
+  test "$list" = "$_kdeck_kc_list"; and return 0
+  set -g _kdeck_kc_list $list
+  set -l cur $HOME/.kube/config
+  set -q KUBECONFIG; and test -n "$KUBECONFIG"; and set cur (string split : -- "$KUBECONFIG")
+  set -l kept
+  for p in $cur
+    test -n "$p"; and not string match -q -- "$d/*" $p; and set -a kept $p
+  end
+  set -gx KUBECONFIG (string join : $kept $files)
+end
+_kdeck_kc_sync
+`, strings.ReplaceAll(dir, "'", "\\'"))
+	case "powershell":
+		fmt.Fprintln(out, "$env:KUBECONFIG = (kdeck kubeconfig env --value)")
+	case "cmd":
+		fmt.Fprintln(out, "rem Per-cluster kubeconfigs: run  for /f \"delims=\" %i in ('kdeck kubeconfig env --value') do set KUBECONFIG=%i")
+	}
 }

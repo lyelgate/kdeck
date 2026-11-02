@@ -151,4 +151,12 @@ echo "--- shortcuts"
 [ "$(KDECK_DEBUG_ALIAS=1 $KP -n $NS kgpo 2>&1 >/dev/null | head -1)" = "kdeck: kgpo -> -n $NS get pods" ] && echo "ok   kgpo expands" || { echo "MISS kgpo"; fail=1; }
 $KP -n $NS po web >/dev/null && echo "ok   kdeck po regex"
 
+echo "--- per-cluster kubeconfig"
+ORIG=$($KP ctx -c)
+$KP config view --raw --minify > "$KDECK_HOME/kind.yaml"
+$KP kc add "$KDECK_HOME/kind.yaml" --name e2e-store --set-current >/dev/null
+if [ "$($KP ctx -c)" = e2e-store ] && $KP get ns $NS >/dev/null && [ -f "$KDECK_HOME/kubeconfigs/e2e-store.yaml" ]; then echo "ok   context from its own kubeconfig file"; else echo "MISS kubeconfig store"; fail=1; fi
+$KP ctx "$ORIG" >/dev/null
+$KP kc rm e2e-store >/dev/null && [ "$($KP ctx -c)" = "$ORIG" ] && echo "ok   store file removed, context restored" || { echo "MISS kubeconfig store cleanup"; fail=1; }
+
 exit $fail

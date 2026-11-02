@@ -19,6 +19,7 @@ kdeck linode lke kubeconfig 12345 --merge --set-current   # LKE cluster -> kubec
 - [kubectl, built in](#kubectl-built-in)
 - [Shortcuts and aliases](#shortcuts-and-aliases)
 - [Contexts and namespaces](#contexts-and-namespaces)
+- [Per-cluster kubeconfigs](#per-cluster-kubeconfigs)
 - [Everyday helpers](#everyday-helpers)
 - [Silent-failure detection](#silent-failure-detection-kdeck-silent)
 - [Plugins (krew-compatible)](#plugins-krew-compatible)
@@ -177,6 +178,23 @@ Debug expansion with `KDECK_DEBUG_ALIAS=1 kdeck kgpoa`.
 | `kdeck ns -c` | Print the current namespace |
 
 The previous context and per-context namespace are remembered in `~/.kdeck/state.json`.
+
+## Per-cluster kubeconfigs
+
+kdeck keeps **one kubeconfig file per cluster** in `~/.kdeck/kubeconfigs` (`KDECK_KUBECONFIG_DIR` to move it), so an expired, broken or removed cluster never touches the others, and a cluster is removed by removing one file. New clusters land there: `kdeck tu` and `kdeck treq` (Teleport), `kdeck linode lke kubeconfig --merge`, `kdeck eks|gke|aks use`, `kdeck ctx import` and `kdeck kc add`.
+
+kdeck puts every file in `KUBECONFIG` after your main kubeconfig (`~/.kube/config`), which keeps only the current context, so `kdeck ctx`, `kh`, `-C` and every kubectl command see all clusters. The shell-init hook does the same before each prompt for kubectl, helm and k9s started from your shell (PowerShell and cmd.exe: once at start-up, or `kdeck kc env`). Each file's cluster and user entries are renamed after its context, so files never collide.
+
+| Command | Does |
+| --- | --- |
+| `kdeck kc` (`kdeck kubeconfig ls [re]`) | The files, their contexts and servers; `*` marks the current one, NOTE flags a context hidden by an earlier file |
+| `kdeck kc add FILE --name NAME [--set-current]` | Copy a kubeconfig in as `NAME.yaml` (contexts renamed `NAME`, `NAME-2`, ...); an existing `NAME.yaml` is replaced |
+| `kdeck kc split [re] [--keep]` | Move contexts out of `~/.kube/config` into one file each (backup first; `--keep` copies) |
+| `kdeck kc rm NAME` | Remove a cluster's file (kept aside as `NAME.yaml.removed-<time>`) |
+| `kdeck kc env [--shell S]` / `kdeck kc path [NAME]` | The `KUBECONFIG` line for other tools; the directory or one file |
+| `kdeck kc mode merge` / `separate` | Merge new clusters into `~/.kube/config` as before, or go back to one file each (default). `--kubeconfig FILE` on a command also merges into that file |
+
+Switching is unchanged: `kdeck ctx NAME` for every terminal, `kh NAME` for this one.
 
 ## Everyday helpers
 
@@ -422,7 +440,26 @@ Then:
 | `kdeck tu re` | `kdeck tsh use` | `tsh kube login <match>` and switch kubectl (logs in first if needed) |
 | `kdeck ts` | `kdeck tsh status` | Session status |
 | `kdeck tlo` | `kdeck tsh logout` | Log out |
+| `kdeck tcl [re]` | `kdeck tsh clusters` | Teleport clusters (root and leaf); with a name, `tsh login` to that cluster, then `kdeck tls` shows its Kubernetes clusters |
 | | `kdeck tsh -- ARGS` | Anything else, passed to tsh |
+
+Access requests, for clusters you can request but not reach yet:
+
+| Short | Full | Does |
+| --- | --- | --- |
+| `kdeck treq re --reason "INC-42"` | `kdeck tsh request` | Request the Kubernetes cluster matching `re` (from `tsh request search`), wait for approval, then log in to it and switch kubectl. `--roles dba` requests roles instead (or as well), `--reviewers`, `--nowait` to return at once |
+| `kdeck treqs` | `kdeck tsh request ls` | Your requests; `kdeck tsh request show ID` for one |
+| `kdeck tassume ID` | `kdeck tsh request assume` | Log in with an approved request; `--cluster re` also switches to that cluster |
+| `kdeck tdrop [ID...]` | `kdeck tsh drop` | Drop assumed requests from your certificates (all of them when no ID is given) |
+| | `kdeck tsh request approve ID` / `deny ID` | Review someone else's request (`--reason`) |
+
+```sh
+kdeck treq prod-db --reason "INC-42: 5xx on checkout"   # waits, then: Switched kubectl to Teleport cluster "prod-db"
+kdeck get pods -n checkout
+kdeck tdrop                                               # give the access back
+```
+
+Each Teleport Kubernetes cluster gets its own kubeconfig file in `~/.kdeck/kubeconfigs` (see [Per-cluster kubeconfigs](#per-cluster-kubeconfigs)); `tsh kube login` writes only to that file.
 
 kdeck wraps the official tsh binary (install from goteleport.com/download, `brew install teleport`, or `winget install Teleport.Teleport`) and never handles Teleport credentials itself.
 
@@ -523,11 +560,12 @@ Everything lives in `~/.kdeck` (override with `KDECK_HOME`):
 | --- | --- |
 | `config.yaml` | `aliases`, `silent` (checks, thresholds, suppressions, excludeNamespaces, backupLabels), `linode.defaultRegion` |
 | `state.json` | Previous context and per-context namespace |
+| `kubeconfigs/` | One kubeconfig per cluster (mode 0600); `config.yaml` `kubeconfig.mode: merge` turns it off for new clusters |
 | `bin/` | Plugin links (`kubectl-<name>`), added to PATH when kdeck runs |
 | `store/`, `receipts/`, `index/` | Installed plugin files, install records, krew index copy |
 | `shortcuts/` | Symlinks created by `kdeck shortcuts install` |
 
-Environment: `KDECK_HOME`, `KDECK_NO_FZF=1` (never open the picker), `KDECK_DEBUG_ALIAS=1` (print expansions), `LINODE_TOKEN`, `LINODE_URL` (alternative API endpoint, used by tests).
+Environment: `KDECK_HOME`, `KDECK_KUBECONFIG_DIR`, `KDECK_TSH` (tsh binary), `KDECK_NO_FZF=1` (never open the picker), `KDECK_DEBUG_ALIAS=1` (print expansions), `LINODE_TOKEN`, `LINODE_URL` (alternative API endpoint, used by tests).
 
 ## Security notes
 

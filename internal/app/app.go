@@ -25,6 +25,7 @@ import (
 	"github.com/lyelgate/kdeck/internal/cost"
 	"github.com/lyelgate/kdeck/internal/guard"
 	"github.com/lyelgate/kdeck/internal/kctx"
+	"github.com/lyelgate/kdeck/internal/kubeconfig"
 	"github.com/lyelgate/kdeck/internal/linode"
 	"github.com/lyelgate/kdeck/internal/plugin"
 	"github.com/lyelgate/kdeck/internal/quick"
@@ -45,6 +46,9 @@ var selfNames = map[string]bool{"kdeck": true, "k": true, "kubectl": true, "kube
 
 // Run executes kdeck with the process arguments and returns the exit code.
 func Run(argv []string) int {
+	// Per-cluster kubeconfigs in ~/.kdeck/kubeconfigs join KUBECONFIG for
+	// this process and everything it starts.
+	kubeconfig.Activate()
 	base := strings.TrimSuffix(filepath.Base(argv[0]), ".exe")
 	args := append([]string{}, argv[1:]...)
 	if !selfNames[base] && !strings.HasPrefix(base, "kdeck-") && !strings.HasPrefix(base, "kdeck.") {
@@ -223,6 +227,7 @@ Run "kdeck shell-init zsh" to get short aliases (k, kgpo, ...) and completion.`
 		workspace.SafetyCommand(flags, out),
 		workspace.HistoryCommand(out),
 		workspace.HereCommand(out),
+		workspace.KubeconfigCommand(flags, out),
 		workspace.PromptCommand(out),
 		workspace.ProfileCommand(flags, out),
 		workspace.CompareCommand(flags, out),

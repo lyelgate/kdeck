@@ -3,6 +3,7 @@ package kubeconfig
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -61,7 +62,7 @@ func TestStoreActivateSetCurrent(t *testing.T) {
 	if cfg.Clusters["staging"].Server != "https://lke1.example.com:443" || cfg.AuthInfos["staging"].Token != "t" {
 		t.Fatal("cluster or user not carried over")
 	}
-	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
+	if fi, _ := os.Stat(path); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v", fi.Mode().Perm())
 	}
 
